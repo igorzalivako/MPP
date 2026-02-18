@@ -285,5 +285,105 @@ namespace ChessEngine
                 return columns;
             }
         }
+
+        // Вспомогательные методы для анализа позиции
+        public static double EvaluatePosition(Pieces position)
+        {
+            // Простая материальная оценка
+            double score = 0;
+
+            // Веса фигур
+            var pieceValues = new Dictionary<PieceType, double>
+                {
+                    { PieceType.Pawn, 1 },
+                    { PieceType.Knight, 3 },
+                    { PieceType.Bishop, 3 },
+                    { PieceType.Rook, 5 },
+                    { PieceType.Queen, 9 },
+                    { PieceType.King, 0 } // Король не оценивается материально
+                };
+
+            foreach (PieceColor color in new[] { PieceColor.White, PieceColor.Black })
+            {
+                double multiplier = color == PieceColor.White ? 1 : -1;
+
+                foreach (var kvp in pieceValues)
+                {
+                    int pieceCount = BitOperations.PopCount(position.PieceBitboards[(int)color, (int)kvp.Key].Value);
+                    score += pieceCount * kvp.Value * multiplier;
+                }
+            }
+
+            return score;
+        }
+
+        public static byte FindKingSquare(Pieces position, PieceColor color)
+        {
+            ulong kingBitboard = position.PieceBitboards[(int)color, (int)PieceType.King].Value;
+            return (byte)BitOperations.TrailingZeroCount(kingBitboard);
+        }
+
+        public static int CalculateMobility(Pieces position, PieceColor color)
+        {
+            int totalMoves = 0;
+
+            for (byte square = 0; square < 64; square++)
+            {
+                if ((position.SideBitboards[(int)color].Value & (1UL << square)) != 0)
+                {
+                    // Определяем тип фигуры на этом квадрате
+                    PieceType pieceType = PieceType.Pawn; // По умолчанию
+                    for (int i = 0; i < 6; i++)
+                    {
+                        if ((position.PieceBitboards[(int)color, i].Value & (1UL << square)) != 0)
+                        {
+                            pieceType = (PieceType)i;
+                            break;
+                        }
+                    }
+
+                    // Генерируем ходы в зависимости от типа фигуры
+                    ulong moves = 0;
+                    switch (pieceType)
+                    {
+                        case PieceType.Knight:
+                            moves = GenerateKnightMask(position, square, color, false);
+                            break;
+                        case PieceType.Bishop:
+                            moves = GenerateBishopMask(position, square, color, false);
+                            break;
+                        case PieceType.Rook:
+                            moves = GenerateRookMask(position, square, color, false);
+                            break;
+                        case PieceType.Queen:
+                            moves = GenerateQueenMask(position, square, color, false);
+                            break;
+                        case PieceType.King:
+                            moves = GenerateKingMask(position, square, color, false);
+                            break;
+                        case PieceType.Pawn:
+                            if (color == PieceColor.White)
+                            {
+                                moves = GeneratePawnDefaultMask(position, PieceColor.White);
+                                moves |= GeneratePawnLongMask(position, PieceColor.White);
+                                moves |= GeneratePawnLeftCapturesMask(position, PieceColor.White, false);
+                                moves |= GeneratePawnRightCapturesMask(position, PieceColor.White, false);
+                            }
+                            else
+                            {
+                                moves = GeneratePawnDefaultMask(position, PieceColor.Black);
+                                moves |= GeneratePawnLongMask(position, PieceColor.Black);
+                                moves |= GeneratePawnLeftCapturesMask(position, PieceColor.Black, false);
+                                moves |= GeneratePawnRightCapturesMask(position, PieceColor.Black, false);
+                            }
+                            break;
+                    }
+
+                    totalMoves += BitOperations.PopCount(moves);
+                }
+            }
+
+            return totalMoves;
+        }
     }
 }

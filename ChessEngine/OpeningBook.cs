@@ -123,7 +123,7 @@
 
         private OpeningBook() { }
 
-        public static async Task<OpeningBook> ValidateAndLoadAsync(string path, string content = null)
+        public static async Task<OpeningBook> ValidateAndLoadAsync(string? path, string? content = null)
         {
             if (!string.IsNullOrEmpty(path))
             {

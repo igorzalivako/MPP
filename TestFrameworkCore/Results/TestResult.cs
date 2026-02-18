@@ -13,5 +13,9 @@
         public DateTime StartTime { get; set; }
 
         public DateTime EndTime { get; set; }
+
+        public string Category { get; set; } = string.Empty;
+
+        public int Priority { get; set; }
     }
 }

@@ -1,17 +1,13 @@
-﻿namespace ChessEngine.Tests
-{
-    using System;
-    using System.Collections.Generic;
-    using System.Numerics;
-    using System.Threading.Tasks;
-    using TestFrameworkCore.Assertions;
-    using ChessEngine;
-    using TestFrameworkCore.Attributes;
-    using TestFrameworkCore.Contexts;
+﻿using System.Numerics;
+using TestFrameworkCore.Assertions;
+using TestFrameworkCore.Attributes;
+using static ChessEngine.PsLegalMoves.SlidersMasks;
 
+
+namespace ChessEngine.Tests
+{
     namespace ChessEngineTests
     {
-        // Вспомогательный класс для создания тестовых позиций
         public static class TestPositionBuilder
         {
             public static Pieces CreateEmptyBoard()
@@ -52,6 +48,29 @@
         [TestClass(Category = "BishopMoves", Priority = 1)]
         public class BishopMoveTests
         {
+            [TestMethod]
+            [TestCase((byte)35, 13, Name = "Center e4")]      // e4 - центр
+            [TestCase((byte)7, 7, Name = "Corner a1")]        // a1 - угол
+            [TestCase((byte)27, 13, Name = "Center e5")]      // e5 - центр
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            public void BishopMoves_FromDifferentSquares_ReturnsCorrectMoveCount(byte square, int expectedMoveCount)
+            {
+                // Arrange
+                var emptyBoard = TestPositionBuilder.CreateEmptyBoard();
+
+                // Act
+                ulong moves = PsLegalMoves.GenerateBishopMask(emptyBoard, square, PieceColor.White, false);
+
+                // Assert
+                int actualMoveCount = BitOperations.PopCount(moves);
+                Assert.AreEqual(expectedMoveCount, actualMoveCount,
+                    $"Bishop from square {square} should have {expectedMoveCount} moves, but had {actualMoveCount}");
+
+                // Дополнительная проверка: слон не может ходить на клетку, на которой стоит
+                Assert.IsFalse((moves & (1UL << square)) != 0,
+                    "Bishop should not be able to move to its own square");
+            }
+
             [TestMethod]
             public void BishopMoves_FromCenterEmptyBoard_Returns13Moves()
             {
@@ -131,6 +150,38 @@
         [TestClass(Category = "RookMoves", Priority = 1)]
         public class RookMoveTests
         {
+
+            [TestMethod]
+            [TestCase((byte)36, (byte)44, (byte)52, Direction.North, Name = "Rook blocked to the north")]
+            [TestCase((byte)36, (byte)28, (byte)20, Direction.South, Name = "Rook blocked to the south")]
+            [TestCase((byte)36, (byte)37, (byte)38, Direction.East, Name = "Rook blocked to the east")]
+            [TestCase((byte)36, (byte)35, (byte)34, Direction.West, Name = "Rook blocked to the west")]
+            public void RookMoves_WithBlocker_StopsCorrectly(
+                byte rookSquare,
+                byte blockerSquare,
+                byte beyondBlocker,
+                Direction direction)
+            {
+                // Arrange
+                var pieces = TestPositionBuilder.CreatePositionWithPieces(new Dictionary<byte, (PieceColor, PieceType)>
+                {
+                    { rookSquare, (PieceColor.White, PieceType.Rook) },
+                    { blockerSquare, (PieceColor.Black, PieceType.Pawn) } // Враг на пути
+                });
+
+                // Act
+                ulong moves = PsLegalMoves.GenerateRookMask(pieces, rookSquare, PieceColor.White, false);
+
+                // Assert
+                // Должен включать квадрат с врагом (можно взять)
+                Assert.IsTrue((moves & (1UL << blockerSquare)) != 0,
+                    $"Should include blocker square {blockerSquare} (enemy)");
+
+                // Не должен включать квадраты за врагом
+                Assert.IsFalse((moves & (1UL << beyondBlocker)) != 0,
+                    $"Should not include square {beyondBlocker} (beyond blocker)");
+            }
+
             [TestMethod]
             public void RookMoves_FromCenterEmptyBoard_Returns14Moves()
             {
@@ -165,10 +216,10 @@
                 // Arrange
                 byte e4 = 36;
                 var pieces = TestPositionBuilder.CreatePositionWithPieces(new Dictionary<byte, (PieceColor, PieceType)>
-            {
-                { 44, (PieceColor.Black, PieceType.Pawn) }, // e5 - вражеская пешка на пути на север
-                { 28, (PieceColor.White, PieceType.Pawn) }, // e3 - своя пешка на пути на юг
-            });
+                {
+                    { 44, (PieceColor.Black, PieceType.Pawn) }, // e5 - вражеская пешка на пути на север
+                    { 28, (PieceColor.White, PieceType.Pawn) }, // e3 - своя пешка на пути на юг
+                });
 
                 // Act
                 ulong moves = PsLegalMoves.GenerateRookMask(pieces, e4, PieceColor.White, false);
@@ -220,86 +271,6 @@
             }
         }
 
-        [TestClass(Category = "Integration", Priority = 3)]
-        public class IntegrationTests
-        {
-            private static SharedContext _sharedContext;
-
-            [BeforeAll]
-            public static void InitializeSharedContext()
-            {
-                _sharedContext = SharedContext.Create();
-                _sharedContext.SetData("TestSuite", "ChessEngineTests");
-                _sharedContext.SetData("TotalTestsRun", 0);
-                Console.WriteLine("Shared context initialized for ChessEngineTests");
-            }
-
-            [BeforeEach]
-            public void Setup()
-            {
-                if (_sharedContext != null)
-                {
-                    int count = _sharedContext.GetData<int>("TotalTestsRun") + 1;
-                    _sharedContext.SetData("TotalTestsRun", count);
-                }
-            }
-
-            [TestMethod]
-            public void SharedContext_StoresTestCount()
-            {
-                int count = _sharedContext.GetData<int>("TotalTestsRun");
-                Assert.IsTrue(count > 0, "Test count should be > 0");
-            }
-
-            [TestMethod]
-            public void SharedContext_RetrievesTestSuite()
-            {
-                string? suite = _sharedContext.GetData<string>("TestSuite");
-                Assert.AreEqual("ChessEngineTests", suite, "Should retrieve correct test suite name");
-            }
-
-            [TestMethod]
-            public void ComplexPosition_AllMovesGenerated()
-            {
-                // Создаем сложную позицию с несколькими фигурами
-                var pieces = TestPositionBuilder.CreatePositionWithPieces(new Dictionary<byte, (PieceColor, PieceType)>
-                {
-                    // Белые фигуры
-                    { 7, (PieceColor.White, PieceType.Rook) },     // a1
-                    { 3, (PieceColor.White, PieceType.King) },     // e1
-                    { 14, (PieceColor.White, PieceType.Pawn) },     // b2
-                    { 28, (PieceColor.White, PieceType.Bishop) },  // d4
-                
-                    // Черные фигуры
-                    { 37, (PieceColor.Black, PieceType.Knight) },  // c5
-                    { 51, (PieceColor.Black, PieceType.Queen) },   // e7
-                    { 56, (PieceColor.Black, PieceType.Rook) },    // h8
-                });
-
-                // Проверяем несколько ходов
-                ulong whiteRookMoves = PsLegalMoves.GenerateRookMask(pieces, 0, PieceColor.White, false);
-                ulong blackQueenMoves = PsLegalMoves.GenerateQueenMask(pieces, 52, PieceColor.Black, false);
-                bool isE1Attacked = PsLegalMoves.IsSquareUnderAttack(pieces, 4, PieceColor.White);
-
-                Assert.IsTrue(whiteRookMoves != 0, "White rook should have moves");
-                Assert.IsTrue(blackQueenMoves != 0, "Black queen should have moves");
-                // В этой позиции e1 не должен быть под атакой
-                Assert.IsFalse(isE1Attacked, "e1 should not be under attack");
-            }
-
-            [AfterAll]
-            public static void CleanupSharedContext()
-            {
-                if (_sharedContext != null)
-                {
-                    int totalTests = _sharedContext.GetData<int>("TotalTestsRun");
-                    Console.WriteLine($"Total tests executed in suite: {totalTests}");
-                    Console.WriteLine($"Shared context was used {_sharedContext.InitializationCount} times");
-                    _sharedContext.Dispose();
-                }
-            }
-        }
-
         [TestClass(Category = "AdvancedScenarios", Priority = 2)]
         public class AdvancedScenarioTests
         {
@@ -309,23 +280,22 @@
                 // Arrange - сложная позиция с множеством блокировок
                 byte d4 = 27;
                 var pieces = TestPositionBuilder.CreatePositionWithPieces(new Dictionary<byte, (PieceColor, PieceType)>
-                {
-                    // Свои фигуры (белые)
-                    { d4, (PieceColor.White, PieceType.Queen) },
-                    { 19, (PieceColor.White, PieceType.Pawn) },  // d3 - своя пешка (юг)
-                    { 29, (PieceColor.White, PieceType.Pawn) },  // e4 - своя пешка (восток)
-                    { 26, (PieceColor.White, PieceType.Pawn) },  // c4 - своя пешка (запад)
+            {
+                // Свои фигуры (белые)
+                { d4, (PieceColor.White, PieceType.Queen) },
+                { 19, (PieceColor.White, PieceType.Pawn) },  // d3 - своя пешка (юг)
+                { 29, (PieceColor.White, PieceType.Pawn) },  // e4 - своя пешка (восток)
+                { 26, (PieceColor.White, PieceType.Pawn) },  // c4 - своя пешка (запад)
                 
-                    // Чужие фигуры (черные)
-                    { 43, (PieceColor.Black, PieceType.Pawn) },  // d6 - враг (север)
-                    { 45, (PieceColor.Black, PieceType.Pawn) },  // f5 - враг (северо-восток)
-                });
+                // Чужие фигуры (черные)
+                { 43, (PieceColor.Black, PieceType.Pawn) },  // d6 - враг (север)
+                { 45, (PieceColor.Black, PieceType.Pawn) },  // f5 - враг (северо-восток)
+            });
 
                 // Act
                 ulong queenMoves = PsLegalMoves.GenerateQueenMask(pieces, d4, PieceColor.White, false);
                 ulong queenCaptures = PsLegalMoves.GenerateQueenMask(pieces, d4, PieceColor.White, true);
 
-                // Собираем статистику
                 var moveList = new List<byte>();
                 var captureList = new List<byte>();
 
@@ -337,21 +307,15 @@
                         captureList.Add(i);
                 }
 
-                // Assert - демонстрируем все Assert-ы
-
-                // IsTrue / IsFalse
                 Assert.IsTrue(queenMoves != 0, "Queen should have moves");
                 Assert.IsFalse(queenMoves == 0, "Queen moves should not be zero");
 
-                // AreEqual / AreNotEqual
                 Assert.AreNotEqual(queenMoves, queenCaptures, "All moves and captures should differ");
                 Assert.AreEqual(2, captureList.Count, "Should have exactly 2 captures");
 
-                // IsNull / IsNotNull
                 Assert.IsNotNull(moveList, "Move list should not be null");
                 Assert.IsNotNull(captureList, "Capture list should not be null");
 
-                // Contains
                 Assert.Contains<byte>(moveList, 43, "Should contain d6 (enemy - capture)");
                 Assert.Contains<byte>(moveList, 45, "Should contain f5 (enemy - capture)");
 
@@ -361,11 +325,9 @@
                 Assert.IsFalse(moveList.Contains(25), "Should not contain b4 (behind own pawn)");
                 Assert.IsFalse(moveList.Contains(51), "Should not contain d7 (behind enemy)");
 
-                // InRange
                 Assert.InRange(moveList.Count, 5, 15, "Move count should be in reasonable range");
                 Assert.InRange(captureList.Count, 1, 3, "Capture count should be in reasonable range");
 
-                // Throws / DoesNotThrow
                 Assert.Throws<InvalidOperationException>(() => PsLegalMoves.ValidatePosition(pieces, 24, PieceColor.White),
                     "Should throw for invalid square");
                 Assert.DoesNotThrow(

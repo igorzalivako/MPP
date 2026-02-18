@@ -7,7 +7,7 @@ namespace TestRunnerProgram.TestRunners
 {
     public class TestRunner
     {
-        private readonly List<TestResult> _results = new List<TestResult>();
+        private readonly List<TestResult> _results = [];
 
         public IEnumerable<TestResult> RunTestsInAssembly(string assemblyPath)
         {
@@ -44,8 +44,12 @@ namespace TestRunnerProgram.TestRunners
 
                 foreach (var method in testMethods)
                 {
-                    var testResult = ExecuteTestMethod(testClass, testObject, method);
-                    results.Add(testResult);
+                    var methodAttr = method.GetCustomAttributes<SkipTestAttribute>();
+                    if (!methodAttr.Any())
+                    {
+                        var testResult = ExecuteTestMethod(testClass, testObject, method);
+                        results.Add(testResult);
+                    }
                 }
 
                 // Выполняем AfterAll методы
@@ -59,9 +63,16 @@ namespace TestRunnerProgram.TestRunners
         {
             var testResult = new TestResult
             {
-                TestName = $"{testClass.Name}.{method.Name}",
-                StartTime = DateTime.Now
+                StartTime = DateTime.Now,
+                Passed = true
             };
+
+            var classAttr = testClass.GetCustomAttribute<TestClassAttribute>();
+            if (classAttr != null)
+            {
+                testResult.Category = classAttr.Category ?? "Uncategorized";
+                testResult.Priority = classAttr.Priority;
+            }
 
             try
             {
@@ -75,19 +86,31 @@ namespace TestRunnerProgram.TestRunners
                 {
                     foreach (var testCase in testCases)
                     {
-                        testResult.TestName = $"{testClass.Name}.{method.Name}[{testCase.Name ?? string.Join(",", testCase.Parameters)}]";
+                        var currentTestName = $"{testClass.Name}.{method.Name}[{testCase.Name ?? string.Join(",", testCase.Parameters)}]";
 
-                        // Выполняем BeforeEach перед каждым тест-кейсом
-                        ExecuteLifecycleMethods(testClass, testObject, typeof(BeforeEachAttribute));
-
-                        method.Invoke(testObject, testCase.Parameters);
-
-                        // Выполняем AfterEach после каждого тест-кейса
-                        ExecuteLifecycleMethods(testClass, testObject, typeof(AfterEachAttribute));
+                        try
+                        {
+                            // Выполняем BeforeEach перед каждым тест-кейсом
+                            ExecuteLifecycleMethods(testClass, testObject, typeof(BeforeEachAttribute));
+                            method.Invoke(testObject, testCase.Parameters);
+                            testResult.TestName += $"\n\t{currentTestName}\n";
+                        }
+                        catch (TargetInvocationException ex) when (ex.InnerException is AssertionFailedException)
+                        {
+                            testResult.Passed = false;
+                            testResult.ErrorMessage += $"\n\t{currentTestName} Assertion failed: {ex.InnerException.Message}\n";
+                        }
+                        finally
+                        {
+                            // Выполняем AfterEach после каждого тест-кейса
+                            ExecuteLifecycleMethods(testClass, testObject, typeof(AfterEachAttribute));
+                        }
                     }
                 }
                 else
                 {
+                    testResult.TestName = $"{testClass.Name}.{method.Name}";
+                        
                     // Обычный тест
                     if (method.ReturnType == typeof(Task))
                     {
@@ -101,8 +124,6 @@ namespace TestRunnerProgram.TestRunners
                         method.Invoke(testObject, null);
                     }
                 }
-
-                testResult.Passed = true;
             }
             catch (TargetInvocationException ex) when (ex.InnerException is AssertionFailedException)
             {
@@ -137,80 +158,159 @@ namespace TestRunnerProgram.TestRunners
             }
         }
 
-        public void PrintResults(string outputPath = null)
+        public void PrintResults()
         {
-            var output = new System.Text.StringBuilder();
+            if (_results == null) throw new ArgumentNullException(nameof(_results));
 
-            // Заголовок
-            Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.WriteLine("=== TEST RESULTS ===");
-            Console.ResetColor();
+            if (_results.Count == 0)
+            {
+                WriteLineColored("No test results.", ConsoleColor.DarkYellow);
+                return;
+            }
 
-            // Статистика
+            bool canUseColors = !Console.IsOutputRedirected;
+
+            // Общая сводка
+            int total = _results.Count;
             int passed = _results.Count(r => r.Passed);
-            int failed = _results.Count(r => !r.Passed);
+            int failed = total - passed;
+            TimeSpan totalDuration = new TimeSpan(_results.Sum(r => r.Duration.Ticks));
 
-            Console.WriteLine($"Total tests: {_results.Count}");
-
-            Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine($"Passed: {passed}");
-            Console.ResetColor();
-
-            if (failed > 0)
-                Console.ForegroundColor = ConsoleColor.Red;
-            Console.WriteLine($"Failed: {failed}");
-            Console.ResetColor();
-
+            WriteHeader("TEST RUN SUMMARY", canUseColors);
+            WriteKeyValue("Total", total.ToString(), ConsoleColor.Gray, canUseColors);
+            WriteKeyValue("Passed", passed.ToString(), ConsoleColor.Green, canUseColors);
+            WriteKeyValue("Failed", failed.ToString(), ConsoleColor.Red, canUseColors);
+            WriteKeyValue("Duration", FormatDuration(totalDuration), ConsoleColor.Cyan, canUseColors);
             Console.WriteLine();
 
-            // Результаты каждого теста
-            foreach (var result in _results)
+            // Группировка по категориям (пустые категории -> "Uncategorized")
+            var groups = _results
+                .GroupBy(r => string.IsNullOrWhiteSpace(r.Category) ? "Uncategorized" : r.Category.Trim())
+                .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+
+            foreach (var group in groups)
             {
-                // Статус теста (PASS/FAIL) с цветом
-                if (result.Passed)
-                    Console.ForegroundColor = ConsoleColor.Green;
-                else
-                    Console.ForegroundColor = ConsoleColor.Red;
+                var items = group
+                    .OrderBy(r => r.Passed) // сначала failed, потом passed (по желанию можно наоборот)
+                    .ThenByDescending(r => r.Priority)
+                    .ThenBy(r => r.TestName, StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
 
-                Console.Write($"[{(result.Passed ? "PASS" : "FAIL")}] ");
-                Console.ResetColor();
+                int gTotal = items.Length;
+                int gPassed = items.Count(r => r.Passed);
+                int gFailed = gTotal - gPassed;
+                TimeSpan gDuration = new TimeSpan(items.Sum(r => r.Duration.Ticks));
 
-                // Имя теста
-                Console.WriteLine(result.TestName);
+                // Заголовок категории
+                WriteCategoryHeader(group.Key, gTotal, gPassed, gFailed, gDuration, canUseColors);
 
-                // Длительность (желтым цветом)
-                Console.ForegroundColor = ConsoleColor.Yellow;
-                Console.WriteLine($"  Duration: {result.Duration.TotalMilliseconds:F2}ms");
-                Console.ResetColor();
-
-                // Ошибка для упавших тестов (красным)
-                if (!result.Passed)
+                // Небольшая табличка
+                // Колонки: Status | Name | Priority | Duration | Start - End
+                foreach (var r in items)
                 {
-                    Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine($"  Error: {result.ErrorMessage}");
-                    Console.ResetColor();
+                    var statusText = r.Passed ? "PASS" : "FAIL";
+                    var statusColor = r.Passed ? ConsoleColor.Green : ConsoleColor.Red;
+
+                    // Строка результата
+                    WriteColored($"  [{statusText}]", statusColor, canUseColors);
+                    Console.Write(" ");
+
+                    // Имя
+                    Console.Write(r.TestName);
+
+                    // Доп. поля в конце (чтобы имя не резать)
+                    Console.Write($"  (P{r.Priority})");
+                    Console.Write($"  {FormatDuration(r.Duration)}");
+                    Console.Write($"  {r.StartTime:HH:mm:ss}–{r.EndTime:HH:mm:ss}");
+                    Console.WriteLine();
+
+                    // Ошибка — отдельной строкой, если есть
+                    if (!r.Passed && !string.IsNullOrWhiteSpace(r.ErrorMessage))
+                    {
+                        WriteColored("      ", ConsoleColor.DarkRed, canUseColors);
+                        WriteLineColored(r.ErrorMessage.Trim(), ConsoleColor.DarkRed, canUseColors);
+                    }
                 }
 
                 Console.WriteLine();
-
-                // Сохраняем в файл без цветов
-                output.AppendLine($"[{(result.Passed ? "PASS" : "FAIL")}] {result.TestName}");
-                output.AppendLine($"  Duration: {result.Duration.TotalMilliseconds:F2}ms");
-                if (!result.Passed)
-                {
-                    output.AppendLine($"  Error: {result.ErrorMessage}");
-                }
-                output.AppendLine();
             }
+        }
 
-            // Сохранение в файл
-            if (outputPath != null)
+        private static void WriteHeader(string title, bool canUseColors)
+        {
+            WriteLineColored(new string('=', Math.Max(10, title.Length + 8)), ConsoleColor.DarkGray);
+            WriteColored("=== ", ConsoleColor.DarkGray, canUseColors);
+            WriteColored(title, ConsoleColor.White, canUseColors);
+            WriteLineColored(" ===", ConsoleColor.DarkGray, canUseColors);
+            WriteLineColored(new string('=', Math.Max(10, title.Length + 8)), ConsoleColor.DarkGray, canUseColors);
+        }
+
+        private static void WriteCategoryHeader(
+            string category, int total, int passed, int failed, TimeSpan duration, bool canUseColors)
+        {
+            // Категория
+            WriteColored("Category: ", ConsoleColor.Gray, canUseColors);
+            WriteLineColored(category, ConsoleColor.White, canUseColors);
+
+            // Статистика категории
+            WriteColored("  Total: ", ConsoleColor.Gray, canUseColors);
+            Console.Write(total);
+
+            WriteColored("  Passed: ", ConsoleColor.Gray, canUseColors);
+            WriteColored(passed.ToString(), ConsoleColor.Green, canUseColors);
+
+            WriteColored("  Failed: ", ConsoleColor.Gray, canUseColors);
+            WriteColored(failed.ToString(), ConsoleColor.Red, canUseColors);
+
+            WriteColored("  Duration: ", ConsoleColor.Gray, canUseColors);
+            WriteLineColored(FormatDuration(duration), ConsoleColor.Cyan, canUseColors);
+        }
+
+        private static void WriteKeyValue(string key, string value, ConsoleColor valueColor, bool canUseColors)
+        {
+            WriteColored($"{key}: ", ConsoleColor.Gray, canUseColors);
+            WriteLineColored(value, valueColor, canUseColors);
+        }
+
+        private static string FormatDuration(TimeSpan ts)
+        {
+            // Приятный формат: 12ms, 1.23s, 02:15.123 и т.п.
+            if (ts.TotalMilliseconds < 1000)
+                return $"{ts.TotalMilliseconds:0}ms";
+            if (ts.TotalSeconds < 60)
+                return $"{ts.TotalSeconds:0.00}s";
+            if (ts.TotalMinutes < 60)
+                return $"{(int)ts.TotalMinutes:00}:{ts.Seconds:00}.{ts.Milliseconds:000}";
+            return $"{(int)ts.TotalHours:00}:{ts.Minutes:00}:{ts.Seconds:00}.{ts.Milliseconds:000}";
+        }
+
+        private static void WriteColored(string text, ConsoleColor color, bool canUseColors)
+        {
+            if (!canUseColors)
             {
-                File.WriteAllText(outputPath, output.ToString());
-                Console.ForegroundColor = ConsoleColor.Green;
-                Console.WriteLine($"\nResults written to: {outputPath}");
-                Console.ResetColor();
+                Console.Write(text);
+                return;
             }
+
+            var prev = Console.ForegroundColor;
+            Console.ForegroundColor = color;
+            Console.Write(text);
+            Console.ForegroundColor = prev;
+        }
+
+        private static void WriteLineColored(string text, ConsoleColor color, bool canUseColors = true)
+        {
+            if (!canUseColors)
+            {
+                Console.WriteLine(text);
+                return;
+            }
+
+            var prev = Console.ForegroundColor;
+            Console.ForegroundColor = color;
+            Console.WriteLine(text);
+            Console.ForegroundColor = prev;
         }
     }
 }
