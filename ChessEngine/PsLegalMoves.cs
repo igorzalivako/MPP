@@ -385,5 +385,84 @@ namespace ChessEngine
 
             return totalMoves;
         }
+
+        public static class TestPositionBuilder
+        {
+            public static Pieces CreateEmptyBoard()
+            {
+                var position = new Position("8/8/8/8/8/8/8/8");
+                return position.Pieces;
+            }
+
+            public static Pieces CreatePositionWithPiece(byte square, PieceColor color, PieceType type)
+            {
+                var position = new Position("8/8/8/8/8/8/8/8");
+                var pieces = position.Pieces;
+                pieces.PieceBitboards[(int)color, (int)type].Value |= 1UL << square;
+                pieces.SideBitboards[(int)color].Value |= 1UL << square;
+                pieces.All.Value |= 1UL << square;
+                pieces.UpdateBitboards();
+                return pieces;
+            }
+
+            public static Pieces CreatePositionWithPieces(Dictionary<byte, (PieceColor color, PieceType type)> pieces)
+            {
+                var position = new Position("8/8/8/8/8/8/8/8");
+                var result = position.Pieces;
+                foreach (var kvp in pieces)
+                {
+                    byte square = kvp.Key;
+                    var (color, type) = kvp.Value;
+
+                    result.PieceBitboards[(int)color, (int)type].Value |= 1UL << square;
+                    result.SideBitboards[(int)color].Value |= 1UL << square;
+                    result.All.Value |= 1UL << square;
+                }
+                result.UpdateBitboards();
+                return result;
+            }
+
+            public static Pieces CreateStandardPosition()
+            {
+                var initialPosition = new Dictionary<byte, (PieceColor, PieceType)>
+                {
+                    { 0, (PieceColor.White, PieceType.Rook) },
+                    { 1, (PieceColor.White, PieceType.Knight) },
+                    { 2, (PieceColor.White, PieceType.Bishop) },
+                    { 3, (PieceColor.White, PieceType.Queen) },
+                    { 4, (PieceColor.White, PieceType.King) },
+                    { 5, (PieceColor.White, PieceType.Bishop) },
+                    { 6, (PieceColor.White, PieceType.Knight) },
+                    { 7, (PieceColor.White, PieceType.Rook) },
+                    { 8, (PieceColor.White, PieceType.Pawn) },
+                    { 9, (PieceColor.White, PieceType.Pawn) },
+                    { 10, (PieceColor.White, PieceType.Pawn) },
+                    { 11, (PieceColor.White, PieceType.Pawn) },
+                    { 12, (PieceColor.White, PieceType.Pawn) },
+                    { 13, (PieceColor.White, PieceType.Pawn) },
+                    { 14, (PieceColor.White, PieceType.Pawn) },
+                    { 15, (PieceColor.White, PieceType.Pawn) },
+
+                    { 48, (PieceColor.Black, PieceType.Pawn) },
+                    { 49, (PieceColor.Black, PieceType.Pawn) },
+                    { 50, (PieceColor.Black, PieceType.Pawn) },
+                    { 51, (PieceColor.Black, PieceType.Pawn) },
+                    { 52, (PieceColor.Black, PieceType.Pawn) },
+                    { 53, (PieceColor.Black, PieceType.Pawn) },
+                    { 54, (PieceColor.Black, PieceType.Pawn) },
+                    { 55, (PieceColor.Black, PieceType.Pawn) },
+                    { 56, (PieceColor.Black, PieceType.Rook) },
+                    { 57, (PieceColor.Black, PieceType.Knight) },
+                    { 58, (PieceColor.Black, PieceType.Bishop) },
+                    { 59, (PieceColor.Black, PieceType.Queen) },
+                    { 60, (PieceColor.Black, PieceType.King) },
+                    { 61, (PieceColor.Black, PieceType.Bishop) },
+                    { 62, (PieceColor.Black, PieceType.Knight) },
+                    { 63, (PieceColor.Black, PieceType.Rook) }
+                };
+
+                return CreatePositionWithPieces(initialPosition);
+            }
+        }
     }
 }

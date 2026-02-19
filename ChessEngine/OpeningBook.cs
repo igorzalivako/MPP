@@ -42,7 +42,7 @@
         public OpeningBook(string content, bool isContent)
         {
             var lines = content.Split(
-                new[] { "\r\n", "\r", "\n" },
+                ["\r\n", "\r", "\n"],
                 StringSplitOptions.RemoveEmptyEntries
             );
             ProcessContent(lines);
@@ -60,12 +60,9 @@
                     var (from, to) = ParseSANMove(sanMove);
                     var legalMoves = LegalMovesGenerator.Generate(position, position.ActiveColor, false);
 
-                    var foundMove = legalMoves.FirstOrDefault(m => m.From == from && m.To == to);
-                    if (foundMove is null)
-                        throw new InvalidDataException($"Некорректный ход {sanMove} в дебютной базе");
-
-                    gameMoves.Add(foundMove.Value);
-                    position.MakeMove(foundMove.Value);
+                    var foundMove = legalMoves.FirstOrDefault(m => m.From == from && m.To == to) ?? throw new InvalidDataException($"Некорректный ход {sanMove} в дебютной базе");
+                    gameMoves.Add(foundMove);
+                    position.MakeMove(foundMove);
                 }
                 _moves.Add(gameMoves);
             }

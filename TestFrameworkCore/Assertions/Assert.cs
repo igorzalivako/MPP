@@ -34,7 +34,7 @@ namespace TestFrameworkCore.Assertions
                 throw new AssertionFailedException($"Assert.IsNull failed: {message}");
         }
 
-        public static void IsNotNull(object obj, string message = "Expected not null")
+        public static void IsNotNull(object? obj, string message = "Expected not null")
         {
             if (obj == null)
                 throw new AssertionFailedException($"Assert.IsNotNull failed: {message}");
@@ -96,5 +96,4 @@ namespace TestFrameworkCore.Assertions
                 throw new AssertionFailedException($"Assert.Contains failed: Collection does not contain '{item}'. {message}");
         }
     }
-
 }

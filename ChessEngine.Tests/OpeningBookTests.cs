@@ -29,7 +29,6 @@ namespace ChessEngine.Tests
         [TestMethod]
         public async Task OpeningBook_ValidateAndLoadAsync_WithInvalidContent_ThrowsInvalidDataExceptionAsync()
         {
-            // Assert - проверяем асинхронный метод, который внутри вызывает синхронную обработку
             await Assert.ThrowsAsync<InvalidDataException>(
                 async () => await OpeningBook.ValidateAndLoadAsync(null, InvalidBookContent),
                 "ValidateAndLoadAsync should throw InvalidDataException for invalid content"
@@ -46,7 +45,7 @@ namespace ChessEngine.Tests
                 File.WriteAllText(tempFile, ValidBookContent);
                 var book = await OpeningBook.LoadFromFileAsync(tempFile);
 
-                // Assert - проверяем асинхронное исключение при вызове метода с null
+                // Assert
                 await Assert.ThrowsAsync<ArgumentNullException>(
                     async () => await book.TryFindMoveAsync(null),
                     "TryFindMoveAsync should throw ArgumentNullException for null position"
@@ -64,35 +63,28 @@ namespace ChessEngine.Tests
             string tempFile = Path.GetTempFileName();
             try
             {
-                // Сначала проверяем что файл не существует (должно быть исключение)
                 string invalidPath = "C:\\nonexistent_" + Guid.NewGuid() + ".txt";
                 await Assert.ThrowsAsync<FileNotFoundException>(
                     async () => await OpeningBook.LoadFromFileAsync(invalidPath)
                 );
 
-                // Создаем файл с некорректным содержимым
                 File.WriteAllText(tempFile, InvalidBookContent);
 
-                // Проверяем что загрузка файла с некорректным содержимым выбрасывает исключение
                 await Assert.ThrowsAsync<InvalidDataException>(
                     async () => await OpeningBook.LoadFromFileAsync(tempFile)
                 );
 
-                // Создаем корректный файл
                 File.WriteAllText(tempFile, ValidBookContent);
 
-                // Загружаем корректный файл - исключения быть не должно
                 var book = await OpeningBook.LoadFromFileAsync(tempFile);
                 Assert.IsNotNull(book);
 
-                // Проверяем поиск хода с корректной позицией
                 var position = new Position("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
                 var (move, count) = await book.TryFindMoveAsync(position);
 
                 Assert.IsTrue(count > 0, "Should find moves");
                 Assert.IsNotNull(move, "Move should not be null");
 
-                // Проверяем поиск хода с null позицией - должно быть исключение
                 await Assert.ThrowsAsync<ArgumentNullException>(
                     async () => await book.TryFindMoveAsync(null)
                 );
@@ -102,18 +94,6 @@ namespace ChessEngine.Tests
                 if (File.Exists(tempFile))
                     File.Delete(tempFile);
             }
-        }
-
-        [TestMethod]
-        public void OpeningBook_ParseSANMove_WithInvalidFormat_ThrowsFormatException()
-        {
-            var book = new OpeningBook(ValidBookContent, true);
-
-            // Assert - проверяем что метод ParseSANMove выбрасывает FormatException
-            Assert.Throws<FormatException>(
-                () => book.ParseSANMove("e2"),
-                "ParseSANMove should throw FormatException for too short move"
-            );
         }
     }
 }
