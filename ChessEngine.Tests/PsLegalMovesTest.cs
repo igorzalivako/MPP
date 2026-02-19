@@ -252,5 +252,75 @@ namespace ChessEngine.Tests
                     "Should throw for invalid square");
             }
         }
+
+        [TestClass(Category = "PawnMoves", Priority = 1)]
+        public class PawnMoveTests
+        {
+            private Pieces? _testPosition;
+            private PieceColor _currentSide;
+            private byte _pawnSquare;
+
+            [BeforeEach]
+            public void Setup()
+            {
+                _pawnSquare = 12; // e2
+                _testPosition = TestPositionBuilder.CreatePositionWithPiece(_pawnSquare, PieceColor.White, PieceType.Pawn);
+                _currentSide = PieceColor.White;
+            }
+
+            [AfterEach]
+            public void Cleanup()
+            {
+                _testPosition = null;
+            }
+
+            [TestMethod]
+            public void PawnMoves_WhenBlocked_NoForwardMoves()
+            {
+                // Добавляем черную пешку на e3, блокирующую ход белой пешки
+                _testPosition!.PieceBitboards[(int)PieceColor.Black, (int)PieceType.Pawn].Value |= 1UL << 20;
+                _testPosition.UpdateBitboards();
+
+                // Act
+                ulong moves = GeneratePawnDefaultMask(_testPosition, _currentSide);
+                ulong longMoves = GeneratePawnLongMask(_testPosition, _currentSide);
+
+                // Assert
+                Assert.AreEqual(0UL, moves, "Pawn should have no forward moves when blocked");
+                Assert.AreEqual(0UL, longMoves, "Pawn should have no long moves when forward square is occupied");
+            }
+
+            [TestMethod]
+            public void PawnCaptures_WhenEnemyPiecesExist_CanCapture()
+            {
+                // Черные пешки на d3 (19) и f3 (21)
+                _testPosition!.PieceBitboards[(int)PieceColor.Black, (int)PieceType.Pawn].Value |= 1UL << 19; // d3
+                _testPosition.PieceBitboards[(int)PieceColor.Black, (int)PieceType.Pawn].Value |= 1UL << 21; // f3
+                _testPosition.UpdateBitboards();
+
+                // Act
+                ulong leftCaptures = GeneratePawnLeftCapturesMask(_testPosition, _currentSide, false);
+                ulong rightCaptures = GeneratePawnRightCapturesMask(_testPosition, _currentSide, false);
+                ulong allCaptures = leftCaptures | rightCaptures;
+
+                // Assert
+                Assert.AreEqual(2, BitOperations.PopCount(allCaptures), "Should have 2 captures when enemies are present");
+                Assert.IsTrue((allCaptures & (1UL << 19)) != 0, "Should capture on d3");
+                Assert.IsTrue((allCaptures & (1UL << 21)) != 0, "Should capture on f3");
+            }
+
+            [TestMethod]
+            public void PawnMoves_FromNonStartingRank_NoLongMove()
+            {
+                // Act
+                ulong longMoves = GeneratePawnLongMask(_testPosition!, _currentSide);
+                ulong normalMoves = GeneratePawnDefaultMask(_testPosition!, _currentSide);
+
+                // Assert
+                Assert.AreEqual(268435456ul, longMoves, "Pawn not on starting rank should have a long move");
+                Assert.IsTrue(normalMoves != 0, "Pawn should still have normal one-square move");
+                Assert.AreEqual(1UL << 20, normalMoves, "Pawn on e2 should move to e4");
+            }
+        }
     }
 }

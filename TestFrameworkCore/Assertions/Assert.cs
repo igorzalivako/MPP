@@ -18,13 +18,13 @@ namespace TestFrameworkCore.Assertions
 
         public static void AreEqual(object expected, object? actual, string? message = null)
         {
-            if (!Equals(expected, actual))
+            if (!expected.Equals(actual))
                 throw new AssertionFailedException($"Assert.AreEqual failed: Expected '{expected}', Actual '{actual}'. {message}");
         }
 
         public static void AreNotEqual(object expected, object actual, string? message = null)
         {
-            if (Equals(expected, actual))
+            if (expected.Equals(actual))
                 throw new AssertionFailedException($"Assert.AreNotEqual failed: Values are equal '{expected}'. {message}");
         }
 

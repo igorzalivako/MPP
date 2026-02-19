@@ -38,6 +38,7 @@ namespace TestRunnerProgram
             Console.ResetColor();
 
             var testRunner = new TestRunner();
+
             var currentAssembly = Assembly.LoadFrom(pathToAssembly);
 
             testRunner.RunTestsInAssembly(currentAssembly);
