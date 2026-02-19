@@ -1,6 +1,7 @@
 ﻿using System.Reflection;
 using TestFrameworkCore.Attributes;
 using TestFrameworkCore.Exceptions;
+using TestFrameworkCore.Interfaces;
 using TestFrameworkCore.Results;
 
 namespace TestRunnerProgram.TestRunners
@@ -39,8 +40,16 @@ namespace TestRunnerProgram.TestRunners
 
             if (testObject != null)
             {
-                // Выполняем BeforeAll методы
-                ExecuteLifecycleMethods(testClass, testObject, typeof(BeforeAllAttribute));
+                var sharedContextAttribute = testClass.GetCustomAttribute<SharedContextAttribute>();
+                ISharedContext? sharedContext = null;
+                if (sharedContextAttribute != null)
+                {
+                    sharedContext = ExecuteBeforeAllWithContext(testClass, testObject, sharedContextAttribute);
+                }
+                else 
+                {
+                    ExecuteLifecycleMethods(testClass, testObject, typeof(BeforeAllAttribute));
+                }
 
                 foreach (var method in testMethods)
                 {
@@ -52,11 +61,30 @@ namespace TestRunnerProgram.TestRunners
                     }
                 }
 
-                // Выполняем AfterAll методы
                 ExecuteLifecycleMethods(testClass, testObject, typeof(AfterAllAttribute));
+
+                sharedContext?.Dispose();
             }
 
             return results;
+        }
+
+        private static ISharedContext ExecuteBeforeAllWithContext(Type testClass, object testObject, SharedContextAttribute sharedContextAttribute)
+        {
+            var lifecycleMethods = testClass.GetMethods()
+                .Where(m => m.GetCustomAttributes<BeforeAllAttribute>().Any());
+
+            Type sharedContextType = sharedContextAttribute.ContextType;
+
+            ISharedContext sharedContext = Activator.CreateInstance(sharedContextType) as ISharedContext ?? throw new CustomAttributeFormatException();
+            sharedContext.Initialize();
+
+            foreach (var method in lifecycleMethods)
+            {
+                method.Invoke(testObject, [sharedContext]);
+            }
+
+            return sharedContext;
         }
 
         private static TestResult ExecuteTestMethod(Type testClass, object testObject, MethodInfo method)
@@ -74,77 +102,79 @@ namespace TestRunnerProgram.TestRunners
                 testResult.Priority = classAttr.Priority;
             }
 
-            try
+            var testCases = method.GetCustomAttributes<TestCaseAttribute>().ToList();
+
+            if (testCases.Count != 0)
             {
-                // Выполняем BeforeEach методы
-                ExecuteLifecycleMethods(testClass, testObject, typeof(BeforeEachAttribute));
-
-                // Проверяем наличие параметризованных тестов
-                var testCases = method.GetCustomAttributes<TestCaseAttribute>().ToList();
-
-                if (testCases.Count != 0)
+                foreach (var testCase in testCases)
                 {
-                    foreach (var testCase in testCases)
-                    {
-                        var currentTestName = $"{testClass.Name}.{method.Name}[{testCase.Name ?? string.Join(",", testCase.Parameters)}]";
+                    var currentTestName = $"{testClass.Name}.{method.Name}[{testCase.Name ?? string.Join(",", testCase.Parameters)}]";
 
-                        try
-                        {
-                            // Выполняем BeforeEach перед каждым тест-кейсом
-                            ExecuteLifecycleMethods(testClass, testObject, typeof(BeforeEachAttribute));
-                            method.Invoke(testObject, testCase.Parameters);
-                            testResult.TestName += $"\n\t{currentTestName}\n";
-                        }
-                        catch (TargetInvocationException ex) when (ex.InnerException is AssertionFailedException)
-                        {
-                            testResult.Passed = false;
-                            testResult.ErrorMessage += $"\n\t{currentTestName} Assertion failed: {ex.InnerException.Message}\n";
-                        }
-                        finally
-                        {
-                            // Выполняем AfterEach после каждого тест-кейса
-                            ExecuteLifecycleMethods(testClass, testObject, typeof(AfterEachAttribute));
-                        }
-                    }
-                }
-                else
-                {
-                    testResult.TestName = $"{testClass.Name}.{method.Name}";
-                        
-                    // Обычный тест
-                    if (method.ReturnType == typeof(Task))
+                    try
                     {
-                        // Асинхронный тест
-                        var task = (Task?)method.Invoke(testObject, null);
-                        task?.Wait();
+                        ExecuteLifecycleMethods(testClass, testObject, typeof(BeforeEachAttribute));
+                        ExecuteMethod(testObject, method, testCase.Parameters);
+                        testResult.TestName += $"\n\t{currentTestName}\n";
                     }
-                    else
+                    catch (TargetInvocationException ex) when (ex.InnerException is AssertionFailedException)
                     {
-                        // Синхронный тест
-                        method.Invoke(testObject, null);
+                        testResult.Passed = false;
+                        testResult.ErrorMessage += $"\n\t{currentTestName} Assertion failed: {ex.InnerException.Message}\n";
+                    }
+                    catch (Exception ex)
+                    {
+                        testResult.Passed = false;
+                        testResult.ErrorMessage = $"Test failed with exception: {ex.InnerException?.Message ?? ex.Message}";
+                    }
+                    finally
+                    {
+                        ExecuteLifecycleMethods(testClass, testObject, typeof(AfterEachAttribute));
+                        testResult.EndTime = DateTime.Now;
+                        testResult.Duration = testResult.EndTime - testResult.StartTime;
                     }
                 }
             }
-            catch (TargetInvocationException ex) when (ex.InnerException is AssertionFailedException)
+            else
             {
-                testResult.Passed = false;
-                testResult.ErrorMessage = $"Assertion failed: {ex.InnerException.Message}";
+                testResult.TestName = $"{testClass.Name}.{method.Name}";
+                try
+                {
+                    ExecuteLifecycleMethods(testClass, testObject, typeof(BeforeEachAttribute));
+                    ExecuteMethod(testObject, method, null);
+                }
+                catch (TargetInvocationException ex) when (ex.InnerException is AssertionFailedException)
+                {
+                    testResult.Passed = false;
+                    testResult.ErrorMessage = $"Assertion failed: {ex.InnerException.Message}";
+                }
+                catch (Exception ex)
+                {
+                    testResult.Passed = false;
+                    testResult.ErrorMessage = $"Test failed with exception: {ex.InnerException?.Message ?? ex.Message}";
+                }
+                finally
+                {
+                    ExecuteLifecycleMethods(testClass, testObject, typeof(AfterEachAttribute));
+                    testResult.EndTime = DateTime.Now;
+                    testResult.Duration = testResult.EndTime - testResult.StartTime;
+                }
             }
-            catch (Exception ex)
-            {
-                testResult.Passed = false;
-                testResult.ErrorMessage = $"Test failed with exception: {ex.InnerException?.Message ?? ex.Message}";
-            }
-            finally
-            {
-                // Выполняем AfterEach методы
-                ExecuteLifecycleMethods(testClass, testObject, typeof(AfterEachAttribute));
-
-                testResult.EndTime = DateTime.Now;
-                testResult.Duration = testResult.EndTime - testResult.StartTime;
-            }
-
             return testResult;
+        }
+
+        private static void ExecuteMethod(object testObject, MethodInfo method, object[]? parameters)
+        {
+            if (method.ReturnType == typeof(Task))
+            {
+                // Асинхронный тест
+                var task = (Task?)method.Invoke(testObject, parameters);
+                task?.Wait();
+            }
+            else
+            {
+                // Синхронный тест
+                method.Invoke(testObject, parameters);
+            }
         }
 
         private static void ExecuteLifecycleMethods(Type testClass, object testObject, Type attributeType)
@@ -170,7 +200,6 @@ namespace TestRunnerProgram.TestRunners
 
             bool canUseColors = !Console.IsOutputRedirected;
 
-            // Общая сводка
             int total = _results.Count;
             int passed = _results.Count(r => r.Passed);
             int failed = total - passed;
@@ -183,7 +212,6 @@ namespace TestRunnerProgram.TestRunners
             WriteKeyValue("Duration", FormatDuration(totalDuration), ConsoleColor.Cyan, canUseColors);
             Console.WriteLine();
 
-            // Группировка по категориям (пустые категории -> "Uncategorized")
             var groups = _results
                 .GroupBy(r => string.IsNullOrWhiteSpace(r.Category) ? "Uncategorized" : r.Category.Trim())
                 .OrderBy(g => g.Key, StringComparer.OrdinalIgnoreCase)
@@ -192,7 +220,7 @@ namespace TestRunnerProgram.TestRunners
             foreach (var group in groups)
             {
                 var items = group
-                    .OrderBy(r => r.Passed) // сначала failed, потом passed (по желанию можно наоборот)
+                    .OrderBy(r => r.Passed) 
                     .ThenByDescending(r => r.Priority)
                     .ThenBy(r => r.TestName, StringComparer.OrdinalIgnoreCase)
                     .ToArray();
@@ -200,39 +228,29 @@ namespace TestRunnerProgram.TestRunners
                 int gTotal = items.Length;
                 int gPassed = items.Count(r => r.Passed);
                 int gFailed = gTotal - gPassed;
-                TimeSpan gDuration = new TimeSpan(items.Sum(r => r.Duration.Ticks));
+                var gDuration = new TimeSpan(items.Sum(r => r.Duration.Ticks));
 
-                // Заголовок категории
                 WriteCategoryHeader(group.Key, gTotal, gPassed, gFailed, gDuration, canUseColors);
 
-                // Небольшая табличка
-                // Колонки: Status | Name | Priority | Duration | Start - End
                 foreach (var r in items)
                 {
                     var statusText = r.Passed ? "PASS" : "FAIL";
                     var statusColor = r.Passed ? ConsoleColor.Green : ConsoleColor.Red;
 
-                    // Строка результата
                     WriteColored($"  [{statusText}]", statusColor, canUseColors);
                     Console.Write(" ");
-
-                    // Имя
                     Console.Write(r.TestName);
-
-                    // Доп. поля в конце (чтобы имя не резать)
                     Console.Write($"  (P{r.Priority})");
                     Console.Write($"  {FormatDuration(r.Duration)}");
                     Console.Write($"  {r.StartTime:HH:mm:ss}–{r.EndTime:HH:mm:ss}");
                     Console.WriteLine();
 
-                    // Ошибка — отдельной строкой, если есть
                     if (!r.Passed && !string.IsNullOrWhiteSpace(r.ErrorMessage))
                     {
                         WriteColored("      ", ConsoleColor.DarkRed, canUseColors);
                         WriteLineColored(r.ErrorMessage.Trim(), ConsoleColor.DarkRed, canUseColors);
                     }
                 }
-
                 Console.WriteLine();
             }
         }
@@ -249,11 +267,9 @@ namespace TestRunnerProgram.TestRunners
         private static void WriteCategoryHeader(
             string category, int total, int passed, int failed, TimeSpan duration, bool canUseColors)
         {
-            // Категория
             WriteColored("Category: ", ConsoleColor.Gray, canUseColors);
             WriteLineColored(category, ConsoleColor.White, canUseColors);
 
-            // Статистика категории
             WriteColored("  Total: ", ConsoleColor.Gray, canUseColors);
             Console.Write(total);
 
@@ -275,7 +291,6 @@ namespace TestRunnerProgram.TestRunners
 
         private static string FormatDuration(TimeSpan ts)
         {
-            // Приятный формат: 12ms, 1.23s, 02:15.123 и т.п.
             if (ts.TotalMilliseconds < 1000)
                 return $"{ts.TotalMilliseconds:0}ms";
             if (ts.TotalSeconds < 60)
