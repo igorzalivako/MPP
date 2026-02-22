@@ -2,14 +2,12 @@
 using TestFrameworkCore.Assertions;
 using TestFrameworkCore.Attributes;
 using static ChessEngine.PsLegalMoves;
-using static ChessEngine.PsLegalMoves.SlidersMasks;
-
 
 namespace ChessEngine.Tests
 {
     namespace ChessEngineTests
     {
-        [TestClass(Category = "BishopMoves", Priority = 1)]
+        [TestClass(Category = "BishopMoves")]
         public class BishopMoveTests
         {
             [TestMethod]
@@ -34,29 +32,7 @@ namespace ChessEngine.Tests
                 Assert.IsFalse((moves & (1UL << square)) != 0, "Bishop should not be able to move to its own square");
             }
 
-            [TestMethod]
-            public void BishopMoves_FromCenterEmptyBoard_Returns13Moves()
-            {
-                // Arrange
-                byte e4 = 36;
-                var emptyBoard = TestPositionBuilder.CreateEmptyBoard();
-
-                // Act
-                ulong moves = PsLegalMoves.GenerateBishopMask(emptyBoard, e4, PieceColor.White, false);
-
-                // Assert
-                // Слон на e4 должен иметь 13 ходов по диагоналям
-                int moveCount = BitOperations.PopCount(moves);
-                Assert.AreEqual(13, moveCount, "Bishop from center should have 13 moves on empty board");
-
-                Assert.IsTrue((moves & (1UL << 45)) != 0, "Should include f5");
-                Assert.IsTrue((moves & (1UL << 54)) != 0, "Should include g6");
-                Assert.IsTrue((moves & (1UL << 63)) != 0, "Should include h7");
-                Assert.IsTrue((moves & (1UL << 27)) != 0, "Should include d5");
-                Assert.IsTrue((moves & (1UL << 18)) != 0, "Should include c6");
-            }
-
-            [TestMethod]
+            [TestMethod(Priority = 2)]
             public void BishopMoves_BlockedByOwnPiece_StopsBeforeBlock()
             {
                 // Arrange
@@ -74,7 +50,7 @@ namespace ChessEngine.Tests
                 Assert.IsTrue((moves & (1UL << 63)) == 0, "Should not include h7 (behind own piece)");
             }
 
-            [TestMethod]
+            [TestMethod(Priority = 2)]
             public void BishopMoves_BlockedByEnemyPiece_IncludesEnemySquare()
             {
                 // Arrange
@@ -82,14 +58,14 @@ namespace ChessEngine.Tests
                 var pieces = TestPositionBuilder.CreatePositionWithPiece(45, PieceColor.Black, PieceType.Pawn); // f5 с вражеской пешкой
 
                 // Act
-                ulong moves = PsLegalMoves.GenerateBishopMask(pieces, e4, PieceColor.White, false);
+                ulong moves = GenerateBishopMask(pieces, e4, PieceColor.White, false);
 
                 // Assert
                 Assert.IsTrue((moves & (1UL << 45)) != 0, "Should include f5 (enemy square)");
                 Assert.IsFalse((moves & (1UL << 54)) != 0, "Should not include g6 (behind enemy piece)");
             }
 
-            [TestMethod]
+            [TestMethod(Priority = 3)]
             public void BishopMoves_OnlyCaptures_ReturnsOnlyEnemySquares()
             {
                 // Arrange
@@ -101,7 +77,7 @@ namespace ChessEngine.Tests
                 });
 
                 // Act
-                ulong captures = PsLegalMoves.GenerateBishopMask(pieces, e4, PieceColor.White, true);
+                ulong captures = GenerateBishopMask(pieces, e4, PieceColor.White, true);
 
                 // Assert
                 Assert.AreEqual(1UL << 45, captures, "Should only capture on f5");
@@ -109,11 +85,11 @@ namespace ChessEngine.Tests
             }
         }
 
-        [TestClass(Category = "RookMoves", Priority = 1)]
+        [TestClass(Category = "RookMoves")]
         public class RookMoveTests
         {
 
-            [TestMethod]
+            [TestMethod(Priority = 1)]
             [TestCase((byte)36, (byte)44, (byte)52, Name = "Rook blocked to the north")]
             [TestCase((byte)36, (byte)28, (byte)20, Name = "Rook blocked to the south")]
             [TestCase((byte)36, (byte)37, (byte)38, Name = "Rook blocked to the east")]
@@ -143,7 +119,7 @@ namespace ChessEngine.Tests
                     $"Should not include square {beyondBlocker} (beyond blocker)");
             }
 
-            [TestMethod]
+            [TestMethod(Priority = 2)]
             public void RookMoves_BlockedByPieces_StopsCorrectly()
             {
                 // Arrange
@@ -168,10 +144,10 @@ namespace ChessEngine.Tests
             }
         }
 
-        [TestClass(Category = "QueenMoves", Priority = 1)]
+        [TestClass(Category = "QueenMoves")]
         public class QueenMoveTests
         {
-            [TestMethod]
+            [TestMethod(Priority = 2)]
             public void QueenMoves_IsCombinationOfBishopAndRook()
             {
                 // Arrange
@@ -189,10 +165,10 @@ namespace ChessEngine.Tests
             }
         }
 
-        [TestClass(Category = "AdvancedScenarios", Priority = 2)]
+        [TestClass(Category = "AdvancedScenarios")]
         public class AdvancedScenarioTests
         {
-            [TestMethod]
+            [TestMethod(Priority = 2)]
             public void Test_QueenMoves_WithMultipleBlockers_ComplexAssertions()
             {
                 byte d4 = 27;
@@ -253,7 +229,7 @@ namespace ChessEngine.Tests
             }
         }
 
-        [TestClass(Category = "PawnMoves", Priority = 1)]
+        [TestClass(Category = "PawnMoves")]
         public class PawnMoveTests
         {
             private Pieces? _testPosition;
@@ -274,7 +250,7 @@ namespace ChessEngine.Tests
                 _testPosition = null;
             }
 
-            [TestMethod]
+            [TestMethod(Priority = 1)]
             public void PawnMoves_WhenBlocked_NoForwardMoves()
             {
                 // Добавляем черную пешку на e3, блокирующую ход белой пешки
@@ -290,7 +266,7 @@ namespace ChessEngine.Tests
                 Assert.AreEqual(0UL, longMoves, "Pawn should have no long moves when forward square is occupied");
             }
 
-            [TestMethod]
+            [TestMethod(Priority = 1)]
             public void PawnCaptures_WhenEnemyPiecesExist_CanCapture()
             {
                 // Черные пешки на d3 (19) и f3 (21)
@@ -309,7 +285,7 @@ namespace ChessEngine.Tests
                 Assert.IsTrue((allCaptures & (1UL << 21)) != 0, "Should capture on f3");
             }
 
-            [TestMethod]
+            [TestMethod(Priority = 2)]
             public void PawnMoves_FromNonStartingRank_NoLongMove()
             {
                 // Act

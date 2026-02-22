@@ -7,7 +7,7 @@ namespace ChessEngine.Tests.Contexts
     {
         public Pieces? StartingPosition { get; private set; }
         
-        public List<string> MoveHistory { get; } = new();
+        public List<string> MoveHistory { get; } = [];
         
         public Dictionary<PieceColor, List<PieceType>> CapturedPieces { get; } = [];
 

@@ -4,7 +4,7 @@ using TestFrameworkCore.Exceptions;
 using TestFrameworkCore.Interfaces;
 using TestFrameworkCore.Results;
 
-namespace TestRunnerProgram.TestRunners
+namespace TestRunnerProgram
 {
     public class TestRunner
     {
@@ -99,7 +99,12 @@ namespace TestRunnerProgram.TestRunners
             if (classAttr != null)
             {
                 testResult.Category = classAttr.Category ?? "Uncategorized";
-                testResult.Priority = classAttr.Priority;
+            }
+
+            var methodAttr = method.GetCustomAttribute<TestMethodAttribute>();
+            if (methodAttr != null)
+            {
+                testResult.Priority = methodAttr.Priority;
             }
 
             var testCases = method.GetCustomAttributes<TestCaseAttribute>().ToList();
@@ -164,16 +169,25 @@ namespace TestRunnerProgram.TestRunners
 
         private static void ExecuteMethod(object testObject, MethodInfo method, object[]? parameters)
         {
+            object[]? normalizedParameters = null;
+            if (parameters != null)
+            {
+                var parametersCount = method.GetParameters().Length;
+                normalizedParameters = new object[parametersCount];
+                Array.Copy(parameters, normalizedParameters, parametersCount);
+            }
+
             if (method.ReturnType == typeof(Task))
             {
                 // Асинхронный тест
-                var task = (Task?)method.Invoke(testObject, parameters);
+                var task = (Task?)method.Invoke(testObject, normalizedParameters);
                 task?.Wait();
             }
             else
             {
+                   
                 // Синхронный тест
-                method.Invoke(testObject, parameters);
+                method.Invoke(testObject, normalizedParameters);
             }
         }
 

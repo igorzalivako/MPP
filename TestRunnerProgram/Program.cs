@@ -1,5 +1,4 @@
 ﻿using System.Reflection;
-using TestRunnerProgram.TestRunners;
 
 namespace TestRunnerProgram
 {

@@ -5,8 +5,9 @@ using TestFrameworkCore.Attributes;
 
 namespace ChessEngine.Tests
 {
+    [NoParallel]
     [SharedContext(typeof(ChessEngineTestContext))]
-    [TestClass(Category = "Integration", Priority = 3)]
+    [TestClass(Category = "Integration")]
     public class ChessEngineIntegrationTests
     {
         private static ChessEngineTestContext _context;
@@ -23,7 +24,7 @@ namespace ChessEngine.Tests
             _context.MoveHistory.Add($"--- Starting test at {DateTime.Now:HH:mm:ss} ---");
         }
 
-        [TestMethod]
+        [TestMethod(Priority = 1)]
         public void StartingPosition_ShouldBeValid()
         {
             Pieces? position = _context.StartingPosition;
@@ -41,7 +42,7 @@ namespace ChessEngine.Tests
             _context.MoveHistory.Add("Starting position validated.");
         }
 
-        [TestMethod]
+        [TestMethod(Priority = 2)]
         public void Mobility_ShouldBeCalculated_AndCached()
         {
             var position = _context.StartingPosition;
@@ -58,7 +59,7 @@ namespace ChessEngine.Tests
             _context.MoveHistory.Add($"Mobility W:{whiteMobility} B:{blackMobility}");
         }
 
-        [TestMethod]
+        [TestMethod(Priority = 2)]
         public void King_ShouldNotBeUnderAttack_InStartingPosition()
         {
             var position = _context.StartingPosition;
@@ -73,7 +74,7 @@ namespace ChessEngine.Tests
             _context.MoveHistory.Add("White king safety verified.");
         }
 
-        [TestMethod]
+        [TestMethod(Priority = 3)]
         public void Context_ShouldAccumulate_DataAcrossTests()
         {
             Assert.IsTrue(_context.MoveHistory.Count > 0);

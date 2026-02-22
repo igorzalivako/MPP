@@ -3,7 +3,7 @@ using TestFrameworkCore.Attributes;
 
 namespace ChessEngine.Tests
 {
-    [TestClass(Category = "OpeningBook", Priority = 2)]
+    [TestClass(Category = "OpeningBook")]
     public class OpeningBookTests
     {
         private const string ValidBookContent =
@@ -15,7 +15,7 @@ namespace ChessEngine.Tests
             "e2e4 e7e5 g1f3 x9x9\n" +  // Некорректный ход
             "d2d4 d7d5 c2c4";
 
-        [TestMethod]
+        [TestMethod(Priority = 1)]
         public async Task OpeningBook_LoadFromFileAsync_WithInvalidPath_ThrowsFileNotFoundExceptionAsync()
         {
             string invalidPath = "C:\\NonExistentFolder\\nonexistent_book.txt";
@@ -26,7 +26,7 @@ namespace ChessEngine.Tests
             );
         }
 
-        [TestMethod]
+        [TestMethod(Priority = 2)]
         public async Task OpeningBook_ValidateAndLoadAsync_WithInvalidContent_ThrowsInvalidDataExceptionAsync()
         {
             await Assert.ThrowsAsync<InvalidDataException>(
@@ -35,7 +35,7 @@ namespace ChessEngine.Tests
             );
         }
 
-        [TestMethod]
+        [TestMethod(Priority = 2)]
         public async Task OpeningBook_TryFindMoveAsync_WithNullPosition_ThrowsArgumentNullExceptionAsync()
         {
             // Arrange
@@ -57,7 +57,7 @@ namespace ChessEngine.Tests
             }
         }
 
-        [TestMethod]
+        [TestMethod(Priority = 3)]
         public async Task OpeningBook_ComplexAsyncScenario_WithMultipleExceptions()
         {
             string tempFile = Path.GetTempFileName();

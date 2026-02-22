@@ -5,6 +5,6 @@
     {
         public string? Description { get; set; }
 
-        public bool IsCritical { get; set; }
+        public int Priority { get; set; } = 0;
     }
 }
