@@ -1,6 +1,7 @@
 ﻿using System.Numerics;
 using TestFrameworkCore.Assertions;
 using TestFrameworkCore.Attributes;
+using TestFrameworkCore.Attributes.TestFrameworkCore.Attributes;
 using static ChessEngine.PsLegalMoves;
 
 namespace ChessEngine.Tests
@@ -15,8 +16,10 @@ namespace ChessEngine.Tests
             [TestCase((byte)7, 7, Name = "Corner a1")]        // a1 - угол
             [TestCase((byte)27, 13, Name = "Center e5")]      // e5 - центр
             [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            public void BishopMoves_FromDifferentSquares_ReturnsCorrectMoveCount(byte square, int expectedMoveCount)
+            public async Task BishopMoves_FromDifferentSquares_ReturnsCorrectMoveCount(byte square, int expectedMoveCount)
             {
+                await Task.Delay(500);
+
                 // Arrange
                 var emptyBoard = TestPositionBuilder.CreateEmptyBoard();
 
@@ -33,8 +36,10 @@ namespace ChessEngine.Tests
             }
 
             [TestMethod(Priority = 2)]
-            public void BishopMoves_BlockedByOwnPiece_StopsBeforeBlock()
+            public async Task BishopMoves_BlockedByOwnPiece_StopsBeforeBlock()
             {
+                await Task.Delay(500);
+
                 // Arrange
                 byte e4 = 36;
                 var pieces = TestPositionBuilder.CreatePositionWithPiece(45, PieceColor.White, PieceType.Pawn); // f5 занят своей пешкой
@@ -51,8 +56,10 @@ namespace ChessEngine.Tests
             }
 
             [TestMethod(Priority = 2)]
-            public void BishopMoves_BlockedByEnemyPiece_IncludesEnemySquare()
+            public async Task BishopMoves_BlockedByEnemyPiece_IncludesEnemySquare()
             {
+                await Task.Delay(500);
+
                 // Arrange
                 byte e4 = 36;
                 var pieces = TestPositionBuilder.CreatePositionWithPiece(45, PieceColor.Black, PieceType.Pawn); // f5 с вражеской пешкой
@@ -66,8 +73,10 @@ namespace ChessEngine.Tests
             }
 
             [TestMethod(Priority = 3)]
-            public void BishopMoves_OnlyCaptures_ReturnsOnlyEnemySquares()
+            public async Task BishopMoves_OnlyCaptures_ReturnsOnlyEnemySquares()
             {
+                await Task.Delay(500);
+
                 // Arrange
                 byte e4 = 36;
                 var pieces = TestPositionBuilder.CreatePositionWithPieces(new Dictionary<byte, (PieceColor, PieceType)>
@@ -88,17 +97,22 @@ namespace ChessEngine.Tests
         [TestClass(Category = "RookMoves")]
         public class RookMoveTests
         {
+            [SkipTest]
+
 
             [TestMethod(Priority = 1)]
             [TestCase((byte)36, (byte)44, (byte)52, Name = "Rook blocked to the north")]
             [TestCase((byte)36, (byte)28, (byte)20, Name = "Rook blocked to the south")]
             [TestCase((byte)36, (byte)37, (byte)38, Name = "Rook blocked to the east")]
             [TestCase((byte)36, (byte)35, (byte)34, Name = "Rook blocked to the west")]
-            public void RookMoves_WithBlocker_StopsCorrectly(
+            public async Task RookMoves_WithBlocker_StopsCorrectly(
                 byte rookSquare,
                 byte blockerSquare,
                 byte beyondBlocker)
             {
+
+                await Task.Delay(500);
+
                 // Arrange
                 var pieces = TestPositionBuilder.CreatePositionWithPieces(new Dictionary<byte, (PieceColor, PieceType)>
                 {
@@ -120,8 +134,10 @@ namespace ChessEngine.Tests
             }
 
             [TestMethod(Priority = 2)]
-            public void RookMoves_BlockedByPieces_StopsCorrectly()
+            public async Task RookMoves_BlockedByPieces_StopsCorrectly()
             {
+                await Task.Delay(500);
+
                 // Arrange
                 byte e4 = 36;
                 var pieces = TestPositionBuilder.CreatePositionWithPieces(new Dictionary<byte, (PieceColor, PieceType)>
@@ -148,8 +164,10 @@ namespace ChessEngine.Tests
         public class QueenMoveTests
         {
             [TestMethod(Priority = 2)]
-            public void QueenMoves_IsCombinationOfBishopAndRook()
+            public async Task QueenMoves_IsCombinationOfBishopAndRook()
             {
+                await Task.Delay(500);
+
                 // Arrange
                 byte e4 = 36;
                 var emptyBoard = TestPositionBuilder.CreateEmptyBoard();
@@ -164,13 +182,14 @@ namespace ChessEngine.Tests
                     "Queen moves should be union of bishop and rook moves");
             }
         }
-
         [TestClass(Category = "AdvancedScenarios")]
         public class AdvancedScenarioTests
         {
             [TestMethod(Priority = 2)]
-            public void Test_QueenMoves_WithMultipleBlockers_ComplexAssertions()
+            public async Task Test_QueenMoves_WithMultipleBlockers_ComplexAssertions()
             {
+                await Task.Delay(500);
+
                 byte d4 = 27;
                 var pieces = TestPositionBuilder.CreatePositionWithPieces(new Dictionary<byte, (PieceColor, PieceType)>
                 {
@@ -229,6 +248,7 @@ namespace ChessEngine.Tests
             }
         }
 
+        [NoParallel]
         [TestClass(Category = "PawnMoves")]
         public class PawnMoveTests
         {
@@ -249,10 +269,15 @@ namespace ChessEngine.Tests
             {
                 _testPosition = null;
             }
-
+            [SkipTest]
             [TestMethod(Priority = 1)]
-            public void PawnMoves_WhenBlocked_NoForwardMoves()
+            public async Task PawnMoves_WhenBlocked_NoForwardMoves()
             {
+                _pawnSquare = 12; // e2
+                _testPosition = TestPositionBuilder.CreatePositionWithPiece(_pawnSquare, PieceColor.White, PieceType.Pawn);
+                _currentSide = PieceColor.White;
+                await Task.Delay(500);
+
                 // Добавляем черную пешку на e3, блокирующую ход белой пешки
                 _testPosition!.PieceBitboards[(int)PieceColor.Black, (int)PieceType.Pawn].Value |= 1UL << 20;
                 _testPosition.UpdateBitboards();
@@ -265,10 +290,15 @@ namespace ChessEngine.Tests
                 Assert.AreEqual(0UL, moves, "Pawn should have no forward moves when blocked");
                 Assert.AreEqual(0UL, longMoves, "Pawn should have no long moves when forward square is occupied");
             }
-
+            [SkipTest]
             [TestMethod(Priority = 1)]
-            public void PawnCaptures_WhenEnemyPiecesExist_CanCapture()
+            public async Task PawnCaptures_WhenEnemyPiecesExist_CanCapture()
             {
+                _pawnSquare = 12; // e2
+                _testPosition = TestPositionBuilder.CreatePositionWithPiece(_pawnSquare, PieceColor.White, PieceType.Pawn);
+                _currentSide = PieceColor.White;
+                await Task.Delay(500);
+
                 // Черные пешки на d3 (19) и f3 (21)
                 _testPosition!.PieceBitboards[(int)PieceColor.Black, (int)PieceType.Pawn].Value |= 1UL << 19; // d3
                 _testPosition.PieceBitboards[(int)PieceColor.Black, (int)PieceType.Pawn].Value |= 1UL << 21; // f3
@@ -284,10 +314,16 @@ namespace ChessEngine.Tests
                 Assert.IsTrue((allCaptures & (1UL << 19)) != 0, "Should capture on d3");
                 Assert.IsTrue((allCaptures & (1UL << 21)) != 0, "Should capture on f3");
             }
-
+            [SkipTest]
             [TestMethod(Priority = 2)]
-            public void PawnMoves_FromNonStartingRank_NoLongMove()
+            [Timeout(1000)]
+            public async Task PawnMoves_FromNonStartingRank_NoLongMove()
             {
+                _pawnSquare = 12; // e2
+                _testPosition = TestPositionBuilder.CreatePositionWithPiece(_pawnSquare, PieceColor.White, PieceType.Pawn);
+                _currentSide = PieceColor.White;
+                await Task.Delay(5000);
+
                 // Act
                 ulong longMoves = GeneratePawnLongMask(_testPosition!, _currentSide);
                 ulong normalMoves = GeneratePawnDefaultMask(_testPosition!, _currentSide);

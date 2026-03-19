@@ -18,8 +18,10 @@ namespace ChessEngine.Tests
         [TestMethod(Priority = 1)]
         public async Task OpeningBook_LoadFromFileAsync_WithInvalidPath_ThrowsFileNotFoundExceptionAsync()
         {
-            string invalidPath = "C:\\NonExistentFolder\\nonexistent_book.txt";
+            await Task.Delay(500);
 
+            string invalidPath = "C:\\NonExistentFolder\\nonexistent_book.txt";
+            
             await Assert.ThrowsAsync<FileNotFoundException>(
                 async () => await OpeningBook.LoadFromFileAsync(invalidPath),
                 "LoadFromFileAsync should throw FileNotFoundException for non-existent file"
@@ -29,6 +31,9 @@ namespace ChessEngine.Tests
         [TestMethod(Priority = 2)]
         public async Task OpeningBook_ValidateAndLoadAsync_WithInvalidContent_ThrowsInvalidDataExceptionAsync()
         {
+            await Task.Delay(500);
+
+
             await Assert.ThrowsAsync<InvalidDataException>(
                 async () => await OpeningBook.ValidateAndLoadAsync(null, InvalidBookContent),
                 "ValidateAndLoadAsync should throw InvalidDataException for invalid content"
@@ -38,6 +43,9 @@ namespace ChessEngine.Tests
         [TestMethod(Priority = 2)]
         public async Task OpeningBook_TryFindMoveAsync_WithNullPosition_ThrowsArgumentNullExceptionAsync()
         {
+            await Task.Delay(500);
+
+
             // Arrange
             string tempFile = Path.GetTempFileName();
             try
@@ -60,6 +68,8 @@ namespace ChessEngine.Tests
         [TestMethod(Priority = 3)]
         public async Task OpeningBook_ComplexAsyncScenario_WithMultipleExceptions()
         {
+            await Task.Delay(500);
+
             string tempFile = Path.GetTempFileName();
             try
             {

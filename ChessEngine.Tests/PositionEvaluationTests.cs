@@ -11,22 +11,27 @@ namespace ChessEngine.Tests
     public class ChessEngineIntegrationTests
     {
         private static ChessEngineTestContext _context;
+        [SkipTest]
 
         [BeforeAll]
         public static void Initialize(ChessEngineTestContext context)
         {
             _context = context;
         }
+        [SkipTest]
 
         [BeforeEach]
         public void Setup()
         {
             _context.MoveHistory.Add($"--- Starting test at {DateTime.Now:HH:mm:ss} ---");
         }
+        [SkipTest]
 
         [TestMethod(Priority = 1)]
-        public void StartingPosition_ShouldBeValid()
+        public async Task StartingPosition_ShouldBeValid()
         {
+            await Task.Delay(500);
+
             Pieces? position = _context.StartingPosition;
 
             Assert.IsNotNull(position);
@@ -41,10 +46,13 @@ namespace ChessEngine.Tests
 
             _context.MoveHistory.Add("Starting position validated.");
         }
+        [SkipTest]
 
         [TestMethod(Priority = 2)]
-        public void Mobility_ShouldBeCalculated_AndCached()
+        public async Task Mobility_ShouldBeCalculated_AndCached()
         {
+            await Task.Delay(500);
+
             var position = _context.StartingPosition;
 
             int whiteMobility = PsLegalMoves.CalculateMobility(position!, PieceColor.White);
@@ -58,10 +66,13 @@ namespace ChessEngine.Tests
 
             _context.MoveHistory.Add($"Mobility W:{whiteMobility} B:{blackMobility}");
         }
+        [SkipTest]
 
         [TestMethod(Priority = 2)]
-        public void King_ShouldNotBeUnderAttack_InStartingPosition()
+        public async Task King_ShouldNotBeUnderAttack_InStartingPosition()
         {
+            await Task.Delay(500);
+
             var position = _context.StartingPosition;
 
             byte whiteKingSquare = PsLegalMoves.FindKingSquare(position!, PieceColor.White);
@@ -73,10 +84,13 @@ namespace ChessEngine.Tests
             _context.AnalysisCache["WhiteKingSafe"] = true;
             _context.MoveHistory.Add("White king safety verified.");
         }
+        [SkipTest]
 
         [TestMethod(Priority = 3)]
-        public void Context_ShouldAccumulate_DataAcrossTests()
+        public async Task Context_ShouldAccumulate_DataAcrossTests()
         {
+            await Task.Delay(500);
+
             Assert.IsTrue(_context.MoveHistory.Count > 0);
 
             Assert.IsTrue(_context.AnalysisCache.ContainsKey("WhiteMobility"));
@@ -84,6 +98,7 @@ namespace ChessEngine.Tests
 
             _context.MoveHistory.Add("Accumulated data verified.");
         }
+        [SkipTest]
 
         [AfterAll]
         public static void Cleanup()

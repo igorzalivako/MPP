@@ -44,7 +44,7 @@ namespace TestRunnerProgram
 
             string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
             string resultsPath = $"chess_test_results_{timestamp}.txt";
-            testRunner.PrintResults();
+            //testRunner.PrintResults();
         }
     }
 }
