@@ -15,7 +15,7 @@ namespace ChessEngine.Tests
             "e2e4 e7e5 g1f3 x9x9\n" +  // Некорректный ход
             "d2d4 d7d5 c2c4";
 
-        [TestMethod(Priority = 1)]
+        [TestMethod]
         public async Task OpeningBook_LoadFromFileAsync_WithInvalidPath_ThrowsFileNotFoundExceptionAsync()
         {
             await Task.Delay(500);
@@ -28,7 +28,7 @@ namespace ChessEngine.Tests
             );
         }
 
-        [TestMethod(Priority = 2)]
+        [TestMethod]
         public async Task OpeningBook_ValidateAndLoadAsync_WithInvalidContent_ThrowsInvalidDataExceptionAsync()
         {
             await Task.Delay(500);
@@ -40,7 +40,7 @@ namespace ChessEngine.Tests
             );
         }
 
-        [TestMethod(Priority = 2)]
+        [TestMethod]
         public async Task OpeningBook_TryFindMoveAsync_WithNullPosition_ThrowsArgumentNullExceptionAsync()
         {
             await Task.Delay(500);
@@ -65,7 +65,7 @@ namespace ChessEngine.Tests
             }
         }
 
-        [TestMethod(Priority = 3)]
+        [TestMethod]
         public async Task OpeningBook_ComplexAsyncScenario_WithMultipleExceptions()
         {
             await Task.Delay(500);

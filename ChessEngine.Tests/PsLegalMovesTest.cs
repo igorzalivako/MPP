@@ -8,6 +8,7 @@ namespace ChessEngine.Tests
 {
     namespace ChessEngineTests
     {
+         
         [TestClass(Category = "BishopMoves")]
         public class BishopMoveTests
         {
@@ -35,7 +36,7 @@ namespace ChessEngine.Tests
                 Assert.IsFalse((moves & (1UL << square)) != 0, "Bishop should not be able to move to its own square");
             }
 
-            [TestMethod(Priority = 2)]
+            [TestMethod]
             public async Task BishopMoves_BlockedByOwnPiece_StopsBeforeBlock()
             {
                 await Task.Delay(500);
@@ -55,7 +56,7 @@ namespace ChessEngine.Tests
                 Assert.IsTrue((moves & (1UL << 63)) == 0, "Should not include h7 (behind own piece)");
             }
 
-            [TestMethod(Priority = 2)]
+            [TestMethod]
             public async Task BishopMoves_BlockedByEnemyPiece_IncludesEnemySquare()
             {
                 await Task.Delay(500);
@@ -72,7 +73,7 @@ namespace ChessEngine.Tests
                 Assert.IsFalse((moves & (1UL << 54)) != 0, "Should not include g6 (behind enemy piece)");
             }
 
-            [TestMethod(Priority = 3)]
+            [TestMethod]
             public async Task BishopMoves_OnlyCaptures_ReturnsOnlyEnemySquares()
             {
                 await Task.Delay(500);
@@ -97,10 +98,7 @@ namespace ChessEngine.Tests
         [TestClass(Category = "RookMoves")]
         public class RookMoveTests
         {
-            [SkipTest]
-
-
-            [TestMethod(Priority = 1)]
+            [TestMethod]
             [TestCase((byte)36, (byte)44, (byte)52, Name = "Rook blocked to the north")]
             [TestCase((byte)36, (byte)28, (byte)20, Name = "Rook blocked to the south")]
             [TestCase((byte)36, (byte)37, (byte)38, Name = "Rook blocked to the east")]
@@ -133,7 +131,7 @@ namespace ChessEngine.Tests
                     $"Should not include square {beyondBlocker} (beyond blocker)");
             }
 
-            [TestMethod(Priority = 2)]
+            [TestMethod]
             public async Task RookMoves_BlockedByPieces_StopsCorrectly()
             {
                 await Task.Delay(500);
@@ -163,7 +161,7 @@ namespace ChessEngine.Tests
         [TestClass(Category = "QueenMoves")]
         public class QueenMoveTests
         {
-            [TestMethod(Priority = 2)]
+            [TestMethod]
             public async Task QueenMoves_IsCombinationOfBishopAndRook()
             {
                 await Task.Delay(500);
@@ -185,7 +183,7 @@ namespace ChessEngine.Tests
         [TestClass(Category = "AdvancedScenarios")]
         public class AdvancedScenarioTests
         {
-            [TestMethod(Priority = 2)]
+            [TestMethod]
             public async Task Test_QueenMoves_WithMultipleBlockers_ComplexAssertions()
             {
                 await Task.Delay(500);
@@ -248,7 +246,6 @@ namespace ChessEngine.Tests
             }
         }
 
-        [NoParallel]
         [TestClass(Category = "PawnMoves")]
         public class PawnMoveTests
         {
@@ -270,7 +267,7 @@ namespace ChessEngine.Tests
                 _testPosition = null;
             }
             [SkipTest]
-            [TestMethod(Priority = 1)]
+            [TestMethod]
             public async Task PawnMoves_WhenBlocked_NoForwardMoves()
             {
                 _pawnSquare = 12; // e2
@@ -291,7 +288,7 @@ namespace ChessEngine.Tests
                 Assert.AreEqual(0UL, longMoves, "Pawn should have no long moves when forward square is occupied");
             }
             [SkipTest]
-            [TestMethod(Priority = 1)]
+            [TestMethod]
             public async Task PawnCaptures_WhenEnemyPiecesExist_CanCapture()
             {
                 _pawnSquare = 12; // e2
@@ -314,15 +311,16 @@ namespace ChessEngine.Tests
                 Assert.IsTrue((allCaptures & (1UL << 19)) != 0, "Should capture on d3");
                 Assert.IsTrue((allCaptures & (1UL << 21)) != 0, "Should capture on f3");
             }
+
             [SkipTest]
-            [TestMethod(Priority = 2)]
+            [TestMethod]
             [Timeout(1000)]
             public async Task PawnMoves_FromNonStartingRank_NoLongMove()
             {
                 _pawnSquare = 12; // e2
                 _testPosition = TestPositionBuilder.CreatePositionWithPiece(_pawnSquare, PieceColor.White, PieceType.Pawn);
                 _currentSide = PieceColor.White;
-                await Task.Delay(5000);
+                await Task.Delay(500);
 
                 // Act
                 ulong longMoves = GeneratePawnLongMask(_testPosition!, _currentSide);

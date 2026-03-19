@@ -206,12 +206,6 @@ namespace TestRunnerProgram
             if (classAttr != null)
                 testResult.Category = classAttr.Category ?? "Uncategorized";
 
-            var methodAttr = method.GetCustomAttribute<TestMethodAttribute>();
-            if (methodAttr != null)
-                testResult.Priority = methodAttr.Priority;
-
-            var methodTimeout = method.GetCustomAttribute<TimeoutAttribute>()?.Milliseconds;
-
             string currentTestName;
 
             if (parameters != null)
@@ -293,10 +287,6 @@ namespace TestRunnerProgram
             if (classAttr != null)
                 testResult.Category = classAttr.Category ?? "Uncategorized";
 
-            var methodAttr = method.GetCustomAttribute<TestMethodAttribute>();
-            if (methodAttr != null)
-                testResult.Priority = methodAttr.Priority;
-
             var methodTimeout = method.GetCustomAttribute<TimeoutAttribute>()?.Milliseconds;
 
             var testCases = method.GetCustomAttributes<TestCaseAttribute>().ToList();
@@ -370,26 +360,6 @@ namespace TestRunnerProgram
             }
 
             return testResult;
-        }
-
-        private static Task RunWithTimeout(Action action, int? timeoutMs)
-        {
-            return Task.Run(async () =>
-            {
-                if (timeoutMs == null)
-                {
-                    action();
-                    return;
-                }
-                var testTask = Task.Run(action);
-
-                await Task.WhenAny(testTask, Task.Delay(timeoutMs.Value)); 
-
-                if (!testTask.IsCompletedSuccessfully)
-                {
-                    throw new TimeoutException();
-                }
-            });
         }
 
         private static void ExecuteMethod(object testObject, MethodInfo method, object[]? parameters)
@@ -597,9 +567,11 @@ namespace TestRunnerProgram
                 WriteColored($"  [{statusText}]", statusColor, canUseColors);
                 Console.Write(" ");
                 Console.Write(r.TestName);
-                Console.Write($"  (P{r.Priority})");
-                Console.Write($"  {FormatDuration(r.Duration)}");
-                Console.Write($"  {r.StartTime:HH:mm:ss}–{r.EndTime:HH:mm:ss}");
+                if (r.Passed)
+                {
+                    Console.Write($"  {FormatDuration(r.Duration)}");
+                    Console.Write($"  {r.StartTime:HH:mm:ss}–{r.EndTime:HH:mm:ss}");
+                }
                 Console.WriteLine();
 
                 if (!r.Passed && !string.IsNullOrWhiteSpace(r.ErrorMessage))
