@@ -8,7 +8,6 @@ namespace ChessEngine.Tests
 {
     namespace ChessEngineTests
     {
-         
         [TestClass(Category = "BishopMoves")]
         public class BishopMoveTests
         {
@@ -17,6 +16,41 @@ namespace ChessEngine.Tests
             [TestCase((byte)7, 7, Name = "Corner a1")]        // a1 - угол
             [TestCase((byte)27, 13, Name = "Center e5")]      // e5 - центр
             [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+
             public async Task BishopMoves_FromDifferentSquares_ReturnsCorrectMoveCount(byte square, int expectedMoveCount)
             {
                 await Task.Delay(500);
@@ -161,6 +195,7 @@ namespace ChessEngine.Tests
         [TestClass(Category = "QueenMoves")]
         public class QueenMoveTests
         {
+            [SkipTest]
             [TestMethod]
             public async Task QueenMoves_IsCombinationOfBishopAndRook()
             {
@@ -180,9 +215,11 @@ namespace ChessEngine.Tests
                     "Queen moves should be union of bishop and rook moves");
             }
         }
+
         [TestClass(Category = "AdvancedScenarios")]
         public class AdvancedScenarioTests
         {
+            [SkipTest]
             [TestMethod]
             public async Task Test_QueenMoves_WithMultipleBlockers_ComplexAssertions()
             {

@@ -36,7 +36,7 @@ namespace TestRunnerProgram
             Console.WriteLine("Loading tests...\n");
             Console.ResetColor();
 
-            var testRunner = new TestRunner();
+            var testRunner = new CustomThreadPoolTestRunner();
 
             var currentAssembly = Assembly.LoadFrom(pathToAssembly);
 

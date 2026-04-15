@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChessEngine", "ChessEngine\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChessEngine.Tests", "ChessEngine.Tests\ChessEngine.Tests.csproj", "{1C0D38E0-067E-4DEA-89E2-0269A44420DB}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CustomThreadPool", "CustomThreadPool\CustomThreadPool.csproj", "{345C3843-271E-4141-8959-16AA5C8445F7}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -33,6 +35,10 @@ Global
 		{1C0D38E0-067E-4DEA-89E2-0269A44420DB}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1C0D38E0-067E-4DEA-89E2-0269A44420DB}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1C0D38E0-067E-4DEA-89E2-0269A44420DB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{345C3843-271E-4141-8959-16AA5C8445F7}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{345C3843-271E-4141-8959-16AA5C8445F7}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{345C3843-271E-4141-8959-16AA5C8445F7}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{345C3843-271E-4141-8959-16AA5C8445F7}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -1,4 +1,4 @@
-﻿using System.Data;
+﻿using CustomThreadPool;
 using System.Reflection;
 using TestFrameworkCore.Attributes;
 using TestFrameworkCore.Attributes.TestFrameworkCore.Attributes;
@@ -8,7 +8,7 @@ using TestFrameworkCore.Results;
 
 namespace TestRunnerProgram
 {
-    public class TestRunner
+    public class CustomThreadPoolTestRunner
     {
         private readonly List<TestResult> _results = [];
 
@@ -16,9 +16,13 @@ namespace TestRunnerProgram
 
         public int MaxDegreeOfParallelism { get; set; } = Environment.ProcessorCount;
 
-        public List<Task> _runningTasks = [];
+        private readonly object _resultsLock = new();
+        private readonly Lock _outputLock = new();
 
-        private Lock _outputLock = new Lock();
+        private readonly DynamicThreadPool _threadPool =
+            new DynamicThreadPool(2, Environment.ProcessorCount * 2);
+
+        private int _activeTasks = 0;
 
         public IEnumerable<TestResult> RunTestsInAssembly(string assemblyPath)
         {
@@ -29,21 +33,25 @@ namespace TestRunnerProgram
         public IEnumerable<TestResult> RunTestsInAssembly(Assembly assembly)
         {
             DateTime startTestsTime = DateTime.Now;
+
             var testClasses = assembly.GetTypes()
                 .Where(t => t.GetCustomAttributes<TestClassAttribute>().Any());
 
             foreach (var testClass in testClasses)
             {
-                var results = RunTestsInClass(testClass);
-                _results.AddRange(results);
+                RunTestsInClass(testClass);
             }
+
+            WaitForCompletion();
+
             DateTime endTestsTime = DateTime.Now;
             _totalDuration = endTestsTime - startTestsTime;
+
             PrintSummary(_results);
             return _results;
         }
 
-        private List<TestResult> RunTestsInClass(Type testClass)
+        private void RunTestsInClass(Type testClass)
         {
             var testMethods = testClass.GetMethods()
                 .Where(m => m.GetCustomAttributes<TestMethodAttribute>().Any())
@@ -51,104 +59,64 @@ namespace TestRunnerProgram
                 .ToList();
 
             var testObject = Activator.CreateInstance(testClass);
-            var results = new List<TestResult>();
+            if (testObject == null) return;
 
-            if (testObject == null)
-                return results;
-            
             var noParallel = testClass.GetCustomAttribute<NoParallelAttribute>() != null;
 
-            var sharedContextAttribute = testClass.GetCustomAttribute<SharedContextAttribute>();
+            var sharedContextAttr = testClass.GetCustomAttribute<SharedContextAttribute>();
             ISharedContext? sharedContext = null;
 
-            if (sharedContextAttribute != null)
-                sharedContext = ExecuteBeforeAllWithContext(testClass, testObject, sharedContextAttribute);
+            if (sharedContextAttr != null)
+                sharedContext = ExecuteBeforeAllWithContext(testClass, testObject, sharedContextAttr);
 
             if (noParallel)
             {
                 foreach (var method in testMethods)
                 {
-                    var result = ExecuteTestMethod(testClass, testObject, method, sharedContext);
-                    PrintSingleResult(result);
-                    lock (_results)
-                    {
-                        _results.Add(result);
-                    }
+                    ExecuteAndStore(testClass, testObject, method, sharedContext);
                 }
             }
             else
             {
-                _runningTasks.Clear();
-                var semaphore = new SemaphoreSlim(MaxDegreeOfParallelism);
-                var tasks = new List<Task>();
-
                 foreach (var method in testMethods)
                 {
                     var testCases = method.GetCustomAttributes<TestCaseAttribute>().ToList();
 
                     if (testCases.Count == 0)
                     {
-                        RunSingleParallelTest(semaphore, testClass, testObject, method, sharedContext);
+                        EnqueueTest(testClass, testObject, method, sharedContext, null, null);
                     }
                     else
                     {
-                        RunMultipleParallelTestCases(semaphore, testClass, testObject, method, sharedContext, testCases);
+                        foreach (var tc in testCases)
+                        {
+                            EnqueueTest(testClass, testObject, method, sharedContext, tc.Parameters, tc.Name);
+                        }
                     }
                 }
-                Task.WaitAll(_runningTasks);
             }
 
             ExecuteLifecycleMethods(testClass, testObject, typeof(AfterAllAttribute), sharedContext);
             sharedContext?.Dispose();
-
-            return results;
         }
 
-        private void RunMultipleParallelTestCases(SemaphoreSlim semaphore, Type testClass, object testObject, MethodInfo method, ISharedContext? sharedContext, List<TestCaseAttribute> testCases)
+        private void EnqueueTest(
+            Type testClass,
+            object testObject,
+            MethodInfo method,
+            ISharedContext? sharedContext,
+            object[]? parameters,
+            string? name)
         {
-            foreach (var testCase in testCases)
-            {
-                semaphore.Wait();
+            Interlocked.Increment(ref _activeTasks);
 
-                _runningTasks.Add(Task.Run(async () =>
-                {
-                    TestResult result;
-                    try
-                    {
-                        result = await ExecuteTestMethodParallel(testClass, testObject, method, sharedContext, testCase.Parameters, testCase.Name);
-                    }
-                    catch (TimeoutException)
-                    {
-                        var currentTestName = $"{testClass.Name}.{method.Name}";
-                        result = new TestResult()
-                        {
-                            Passed = false,
-                            ErrorMessage = $"\n\t{currentTestName} FAILED: Timeout exceeded\n"
-                        };
-                    }
-                    finally
-                    {
-                        semaphore.Release();
-                    }
-                    lock (_results)
-                    {
-                        _results.Add(result);
-                    }
-                    PrintSingleResult(result);
-                }));
-            }
-        }
-
-        private void RunSingleParallelTest(SemaphoreSlim semaphore, Type testClass, object testObject, MethodInfo method, ISharedContext? sharedContext)
-        {
-            semaphore.Wait();
-
-            _runningTasks.Add(Task.Run(async () =>
+            _threadPool.Enqueue(() =>
             {
                 TestResult result;
+
                 try
                 {
-                    result = await ExecuteTestMethodParallel(testClass, testObject, method, sharedContext);
+                    result = ExecuteWithTimeout(testClass, testObject, method, sharedContext, parameters, name);
                 }
                 catch (TimeoutException)
                 {
@@ -158,40 +126,84 @@ namespace TestRunnerProgram
                         Passed = false,
                         ErrorMessage = $"\n\t{currentTestName} FAILED: Timeout exceeded\n"
                     };
+                }
 
-                }
-                finally
-                {
-                    semaphore.Release();
-                }
-                lock (_results)
+                lock (_resultsLock)
                 {
                     _results.Add(result);
                 }
+
                 PrintSingleResult(result);
-            }));
+
+                Interlocked.Decrement(ref _activeTasks);
+            });
         }
 
-        private async Task<TestResult> ExecuteTestMethodParallel(Type testClass, object testObject, MethodInfo method, ISharedContext? sharedContext, object[]? parameters = null, string? name = null)
+        private void ExecuteAndStore(
+            Type testClass,
+            object testObject,
+            MethodInfo method,
+            ISharedContext? sharedContext)
         {
-            Task<TestResult> testTask = new(() => ExecuteTestCaseParallel(testClass, testObject, method, sharedContext, parameters, name));
+            var result = ExecuteWithTimeout(testClass, testObject, method, sharedContext, null, null);
 
-            testTask.Start();
-
-            var methodTimeout = method.GetCustomAttribute<TimeoutAttribute>()?.Milliseconds;
-            if (methodTimeout != null) 
+            lock (_resultsLock)
             {
-                await Task.WhenAny(testTask, Task.Delay(methodTimeout.Value));
-                if (!testTask.IsCompleted)
-                {
-                    throw new TimeoutException();
-                }
+                _results.Add(result);
             }
 
-            return testTask.Result;
+            PrintSingleResult(result);
         }
 
-        private TestResult ExecuteTestCaseParallel(Type testClass, object testObject, MethodInfo method, ISharedContext? sharedContext, object[]? parameters = null, string? name = null)
+        private TestResult ExecuteWithTimeout(
+            Type testClass,
+            object testObject,
+            MethodInfo method,
+            ISharedContext? sharedContext,
+            object[]? parameters,
+            string? name)
+        {
+            TestResult? result = null;
+
+            var thread = new Thread(() =>
+            {
+                result = ExecuteTestCase(testClass, testObject, method, sharedContext, parameters, name);
+            });
+
+            thread.Start();
+
+            var timeout = method.GetCustomAttribute<TimeoutAttribute>()?.Milliseconds;
+
+            if (timeout != null)
+            {
+                if (!thread.Join(timeout.Value))
+                {
+                    try { thread.Interrupt(); } catch { }
+
+                    return new TestResult
+                    {
+                        Passed = false,
+                        ErrorMessage = $"\n\t{testClass.Name}.{method.Name} FAILED: Timeout exceeded\n",
+                        StartTime = DateTime.Now,
+                        EndTime = DateTime.Now
+                    };
+                }
+            }
+            else
+            {
+                thread.Join();
+            }
+
+            return result!;
+        }
+
+        private TestResult ExecuteTestCase(
+            Type testClass,
+            object testObject,
+            MethodInfo method,
+            ISharedContext? sharedContext,
+            object[]? parameters,
+            string? name)
         {
             var testResult = new TestResult
             {
@@ -203,16 +215,10 @@ namespace TestRunnerProgram
             if (classAttr != null)
                 testResult.Category = classAttr.Category ?? "Uncategorized";
 
-            string currentTestName;
-
-            if (parameters != null)
-            {
-                currentTestName = $"{testClass.Name}.{method.Name}[{name ?? parameters.ToString()}]";
-            }
-            else
-            {
-                currentTestName = method.Name;
-            }
+            string currentTestName =
+                parameters != null
+                ? $"{testClass.Name}.{method.Name}[{name ?? string.Join(",", parameters)}]"
+                : method.Name;
 
             try
             {
@@ -237,126 +243,20 @@ namespace TestRunnerProgram
             finally
             {
                 ExecuteLifecycleMethods(testClass, testObject, typeof(AfterEachAttribute), sharedContext);
+
                 testResult.EndTime = DateTime.Now;
                 testResult.Duration = testResult.EndTime - testResult.StartTime;
             }
 
             return testResult;
         }
-             
-        private ISharedContext ExecuteBeforeAllWithContext(Type testClass, object testObject, SharedContextAttribute sharedContextAttribute)
+
+        private void WaitForCompletion()
         {
-            var lifecycleMethods = testClass.GetMethods()
-                .Where(m => m.GetCustomAttributes<BeforeAllAttribute>().Any());
-
-            Type sharedContextType = sharedContextAttribute.ContextType;
-
-            ISharedContext sharedContext = Activator.CreateInstance(sharedContextType) as ISharedContext
-                ?? throw new CustomAttributeFormatException();
-
-            sharedContext.Initialize();
-
-            foreach (var method in lifecycleMethods)
+            while (_activeTasks > 0)
             {
-                var parameters = method.GetParameters();
-                if (parameters.Length == 1)
-                    method.Invoke(testObject, [sharedContext]);
-                else
-                    method.Invoke(testObject, null);
+                Thread.Sleep(50);
             }
-
-            return sharedContext;
-        }
-
-        private TestResult ExecuteTestMethod(
-            Type testClass,
-            object testObject,
-            MethodInfo method,
-            ISharedContext? sharedContext)
-        {
-            var testResult = new TestResult
-            {
-                StartTime = DateTime.Now,
-                Passed = true
-            };
-
-            var classAttr = testClass.GetCustomAttribute<TestClassAttribute>();
-            if (classAttr != null)
-                testResult.Category = classAttr.Category ?? "Uncategorized";
-
-            var methodTimeout = method.GetCustomAttribute<TimeoutAttribute>()?.Milliseconds;
-
-            var testCases = method.GetCustomAttributes<TestCaseAttribute>().ToList();
-
-            if (testCases.Count != 0)
-            {
-                foreach (var testCase in testCases)
-                {
-                    var timeout = methodTimeout;
-
-                    var currentTestName =
-                        $"{testClass.Name}.{method.Name}[{testCase.Name ?? string.Join(",", testCase.Parameters)}]";
-
-
-                    try
-                    {
-                        ExecuteLifecycleMethods(testClass, testObject, typeof(BeforeEachAttribute), sharedContext);
-
-                        ExecuteMethod(testObject, method, testCase.Parameters);
-
-                        testResult.TestName += $"\n\t{currentTestName}\n";
-                    }
-                    catch (TargetInvocationException ex) when (ex.InnerException is AssertionFailedException)
-                    {
-                        testResult.Passed = false;
-                        testResult.ErrorMessage +=
-                            $"\n\t{currentTestName} Assertion failed: {ex.InnerException.Message}\n";
-                    }
-                    catch (Exception ex)
-                    {
-                        testResult.Passed = false;
-                        testResult.ErrorMessage +=
-                            $"\n\t{currentTestName} Test failed with exception: {ex.InnerException?.Message ?? ex.Message}\n";
-                    }
-                    finally
-                    {
-                        ExecuteLifecycleMethods(testClass, testObject, typeof(AfterEachAttribute), sharedContext);
-                        testResult.EndTime = DateTime.Now;
-                        testResult.Duration = testResult.EndTime - testResult.StartTime;
-                    }
-                }
-            }
-            else
-            {
-                testResult.TestName = $"{testClass.Name}.{method.Name}";
-
-                try
-                {
-                    ExecuteLifecycleMethods(testClass, testObject, typeof(BeforeEachAttribute), sharedContext);
-
-                    ExecuteMethod(testObject, method, null);
-                    
-                }
-                catch (TargetInvocationException ex) when (ex.InnerException is AssertionFailedException)
-                {
-                    testResult.Passed = false;
-                    testResult.ErrorMessage = $"Assertion failed: {ex.InnerException.Message}";
-                }
-                catch (Exception ex)
-                {
-                    testResult.Passed = false;
-                    testResult.ErrorMessage =
-                        $"Test failed with exception: {ex.InnerException?.Message ?? ex.Message}";
-                }
-                finally
-                {
-                    ExecuteLifecycleMethods(testClass, testObject, typeof(AfterEachAttribute), sharedContext);
-                    testResult.EndTime = DateTime.Now;
-                    testResult.Duration = testResult.EndTime - testResult.StartTime;
-                }
-            }
-
-            return testResult;
         }
 
         private static void ExecuteMethod(object testObject, MethodInfo method, object[]? parameters)
@@ -410,6 +310,32 @@ namespace TestRunnerProgram
             }
         }
 
+        private ISharedContext ExecuteBeforeAllWithContext(
+            Type testClass,
+            object testObject,
+            SharedContextAttribute sharedContextAttribute)
+        {
+            var lifecycleMethods = testClass.GetMethods()
+                .Where(m => m.GetCustomAttributes<BeforeAllAttribute>().Any());
+
+            Type sharedContextType = sharedContextAttribute.ContextType;
+
+            ISharedContext sharedContext = Activator.CreateInstance(sharedContextType) as ISharedContext
+                ?? throw new Exception();
+
+            sharedContext.Initialize();
+
+            foreach (var method in lifecycleMethods)
+            {
+                var parameters = method.GetParameters();
+                if (parameters.Length == 1)
+                    method.Invoke(testObject, [sharedContext]);
+                else
+                    method.Invoke(testObject, null);
+            }
+
+            return sharedContext;
+        }
         public void PrintResults()
         {
             if (_results == null) throw new ArgumentNullException(nameof(_results));
@@ -442,7 +368,7 @@ namespace TestRunnerProgram
             foreach (var group in groups)
             {
                 var items = group
-                    .OrderBy(r => r.Passed) 
+                    .OrderBy(r => r.Passed)
                     .ThenByDescending(r => r.Priority)
                     .ThenBy(r => r.TestName, StringComparer.OrdinalIgnoreCase)
                     .ToArray();
@@ -549,7 +475,6 @@ namespace TestRunnerProgram
             Console.WriteLine(text);
             Console.ForegroundColor = prev;
         }
-
         public void PrintSingleResult(TestResult r)
         {
             lock (_outputLock)
