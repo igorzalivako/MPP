@@ -143,7 +143,7 @@ namespace ChessEngine.Tests
                 byte beyondBlocker)
             {
 
-                await Task.Delay(500);
+                await Task.Delay(5000);
 
                 // Arrange
                 var pieces = TestPositionBuilder.CreatePositionWithPieces(new Dictionary<byte, (PieceColor, PieceType)>

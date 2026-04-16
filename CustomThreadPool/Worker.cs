@@ -21,40 +21,56 @@
 
         public void Start() => _thread.Start();
 
-        public void Stop() => _running = false;
+        public void Stop()
+        {
+            _running = false;
+            _pool.WakeAllWorkers();
+        }
 
         private void WorkLoop()
         {
             while (_running)
             {
-                if (_pool.TryDequeue(out var workItem))
+                WorkItem workItem = null;
+
+                lock (_pool.SyncRoot)
                 {
-                    try
+                    while (_running && !_pool.HasWork)
                     {
-                        LastActiveTime = DateTime.Now;
+                        bool signaled = Monitor.Wait(_pool.SyncRoot, _pool.IdleTimeout);
 
-                        _pool.NotifyTaskStart();
-                        _pool.Log("Task started");
+                        if (!signaled && !_pool.HasWork)
+                        {
+                            if (_pool.TryShrink(this))
+                                break;
+                        }
+                    }
 
-                        workItem.Action();
+                    if (!_running)
+                        break;
 
-                        _pool.Log("Task finished");
-                    }
-                    catch (Exception ex)
-                    {
-                        _pool.LogError(ex);
-                    }
-                    finally
-                    {
-                        _pool.NotifyTaskEnd();
-                    }
-                }
-                else
-                {
-                    Thread.Sleep(50);
+                    workItem = _pool.DequeueUnsafe();
                 }
 
-                _pool.CheckForShrink(this);
+                try
+                {
+                    LastActiveTime = DateTime.Now;
+
+                    _pool.NotifyTaskStart();
+                    _pool.Log("Task started");
+
+                    workItem.Action();
+
+                    _pool.Log("Task finished");
+                }
+                catch (Exception ex)
+                {
+                    _pool.LogError(ex);
+                }
+                finally
+                {
+                    _pool.NotifyTaskEnd();
+                }
             }
 
             _pool.RemoveWorker(this);

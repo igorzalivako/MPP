@@ -1,4 +1,6 @@
-﻿namespace CustomThreadPool
+﻿using Shared;
+
+namespace CustomThreadPool
 {
     public class DynamicThreadPool
     {
@@ -10,10 +12,18 @@
         private readonly int _minThreads;
         private readonly int _maxThreads;
 
-        private readonly TimeSpan _idleTimeout = TimeSpan.FromSeconds(5);
+        private readonly TimeSpan _idleTimeout = TimeSpan.FromSeconds(2);
 
         private int _activeTasks = 0;
         private int _workersToStop = 0;
+
+        private ILogger _logger = new ConsoleLogger();
+
+        public object SyncRoot => _lock;
+
+        public bool HasWork => _queue.Count > 0;
+
+        public TimeSpan IdleTimeout => _idleTimeout;
 
         public DynamicThreadPool(int minThreads, int maxThreads)
         {
@@ -30,24 +40,16 @@
             {
                 _queue.Enqueue(new WorkItem(action));
                 Log($"Task enqueued | Queue: {_queue.Count}");
+
+                Monitor.Pulse(_lock);
             }
 
             ScaleUpIfNeeded();
         }
 
-        public bool TryDequeue(out WorkItem workItem)
+        public WorkItem DequeueUnsafe()
         {
-            lock (_lock)
-            {
-                if (_queue.Count > 0)
-                {
-                    workItem = _queue.Dequeue();
-                    return true;
-                }
-            }
-
-            workItem = null!;
-            return false;
+            return _queue.Dequeue();
         }
 
         private void AddWorker()
@@ -88,21 +90,28 @@
             }
         }
 
-        public void CheckForShrink(Worker worker)
+        public bool TryShrink(Worker worker)
         {
             lock (_lock)
             {
                 int aliveWorkers = _workers.Count - _workersToStop;
 
                 if (aliveWorkers <= _minThreads)
-                    return;
+                    return false;
 
-                if (DateTime.Now - worker.LastActiveTime > _idleTimeout)
-                {
-                    _workersToStop++;
-                    Log("Scaling DOWN (idle worker)");
-                    worker.Stop();
-                }
+                _workersToStop++;
+                Log("Scaling DOWN (idle worker)");
+            }
+
+            worker.Stop();
+            return true;
+        }
+
+        public void WakeAllWorkers()
+        {
+            lock (_lock)
+            {
+                Monitor.PulseAll(_lock);
             }
         }
 
@@ -114,6 +123,14 @@
         public void NotifyTaskEnd()
         {
             Interlocked.Decrement(ref _activeTasks);
+
+            if (_activeTasks == 0 && _queue.Count == 0)
+            {
+                lock (_lock)
+                {
+                    Monitor.PulseAll(_lock);
+                }
+            }
         }
 
         public void LogError(Exception ex)
@@ -123,7 +140,7 @@
 
         public void Log(string message)
         {
-            Console.WriteLine($"[POOL] {DateTime.Now:HH:mm:ss} | {message}");
+            _logger.Log($"[POOL] {DateTime.Now:HH:mm:ss} | {message}");
         }
 
         public int WorkerCount

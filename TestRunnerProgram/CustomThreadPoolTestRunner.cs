@@ -1,4 +1,5 @@
 ﻿using CustomThreadPool;
+using Shared;
 using System.Reflection;
 using TestFrameworkCore.Attributes;
 using TestFrameworkCore.Attributes.TestFrameworkCore.Attributes;
@@ -24,6 +25,13 @@ namespace TestRunnerProgram
 
         private int _activeTasks = 0;
 
+        private readonly ILogger _logger;
+
+        public CustomThreadPoolTestRunner(ILogger logger)
+        {
+            _logger = logger;
+        }
+
         public IEnumerable<TestResult> RunTestsInAssembly(string assemblyPath)
         {
             var assembly = Assembly.LoadFrom(assemblyPath);
@@ -47,7 +55,7 @@ namespace TestRunnerProgram
             DateTime endTestsTime = DateTime.Now;
             _totalDuration = endTestsTime - startTestsTime;
 
-            PrintSummary(_results);
+            _logger.PrintSummary(_results, _totalDuration);
             return _results;
         }
 
@@ -133,7 +141,7 @@ namespace TestRunnerProgram
                     _results.Add(result);
                 }
 
-                PrintSingleResult(result);
+                _logger.PrintSingleResult(result);
 
                 Interlocked.Decrement(ref _activeTasks);
             });
@@ -152,7 +160,7 @@ namespace TestRunnerProgram
                 _results.Add(result);
             }
 
-            PrintSingleResult(result);
+            _logger.PrintSingleResult(result);
         }
 
         private TestResult ExecuteWithTimeout(
@@ -336,7 +344,7 @@ namespace TestRunnerProgram
 
             return sharedContext;
         }
-        public void PrintResults()
+        /*public void PrintResults()
         {
             if (_results == null) throw new ArgumentNullException(nameof(_results));
 
@@ -527,6 +535,6 @@ namespace TestRunnerProgram
             WriteKeyValue("Duration", FormatDuration(_totalDuration), ConsoleColor.Cyan, canUseColors);
 
             Console.WriteLine();
-        }
+        }*/
     }
 }

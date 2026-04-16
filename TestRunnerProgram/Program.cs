@@ -1,4 +1,5 @@
 ﻿using System.Reflection;
+using Shared;
 
 namespace TestRunnerProgram
 {
@@ -36,7 +37,7 @@ namespace TestRunnerProgram
             Console.WriteLine("Loading tests...\n");
             Console.ResetColor();
 
-            var testRunner = new CustomThreadPoolTestRunner();
+            var testRunner = new CustomThreadPoolTestRunner(new ConsoleLogger());
 
             var currentAssembly = Assembly.LoadFrom(pathToAssembly);
 
