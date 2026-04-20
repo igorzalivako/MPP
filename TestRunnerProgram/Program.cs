@@ -1,5 +1,6 @@
-﻿using System.Reflection;
-using Shared;
+﻿using Shared;
+using System.Reflection;
+using TestFrameworkCore.Attributes;
 
 namespace TestRunnerProgram
 {
@@ -38,10 +39,19 @@ namespace TestRunnerProgram
             Console.ResetColor();
 
             var testRunner = new CustomThreadPoolTestRunner(new ConsoleLogger());
+            
+            testRunner.Filter = m =>
+            {
+                var attr = m.GetCustomAttribute<TestCategoryAttribute>();
+                return attr != null && attr.Name == "Bishop";
+            };
 
             var currentAssembly = Assembly.LoadFrom(pathToAssembly);
 
-            testRunner.RunTestsInAssembly(currentAssembly);
+            for (int i = 0; i < 5; i++)
+            {
+                testRunner.RunTestsInAssembly(currentAssembly);
+            }
 
             string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
             string resultsPath = $"chess_test_results_{timestamp}.txt";

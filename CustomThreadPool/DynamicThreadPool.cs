@@ -25,6 +25,8 @@ namespace CustomThreadPool
 
         public TimeSpan IdleTimeout => _idleTimeout;
 
+        public ThreadPoolEvents Events { get; } = new();
+
         public DynamicThreadPool(int minThreads, int maxThreads)
         {
             _minThreads = minThreads;
@@ -63,6 +65,7 @@ namespace CustomThreadPool
             }
 
             worker.Start();
+            Events.OnWorkerCreated();
         }
 
         public void RemoveWorker(Worker worker)
@@ -76,6 +79,7 @@ namespace CustomThreadPool
 
                 Log($"Worker removed | Total workers: {_workers.Count}");
             }
+            Events.OnWorkerRemoved();
         }
 
         private void ScaleUpIfNeeded()
@@ -118,6 +122,7 @@ namespace CustomThreadPool
         public void NotifyTaskStart()
         {
             Interlocked.Increment(ref _activeTasks);
+            Events.OnTaskStarted();
         }
 
         public void NotifyTaskEnd()
@@ -131,6 +136,7 @@ namespace CustomThreadPool
                     Monitor.PulseAll(_lock);
                 }
             }
+            Events.OnTaskCompleted();
         }
 
         public void LogError(Exception ex)
@@ -142,23 +148,5 @@ namespace CustomThreadPool
         {
             _logger.Log($"[POOL] {DateTime.Now:HH:mm:ss} | {message}");
         }
-
-        public int WorkerCount
-        {
-            get
-            {
-                lock (_lock) return _workers.Count;
-            }
-        }
-
-        public int QueueLength
-        {
-            get
-            {
-                lock (_lock) return _queue.Count;
-            }
-        }
-
-        public int ActiveTasks => _activeTasks;
     }
 }

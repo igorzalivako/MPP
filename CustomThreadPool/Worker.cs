@@ -39,6 +39,7 @@
                     {
                         bool signaled = Monitor.Wait(_pool.SyncRoot, _pool.IdleTimeout);
 
+                        // не захватил блокировку
                         if (!signaled && !_pool.HasWork)
                         {
                             if (_pool.TryShrink(this))

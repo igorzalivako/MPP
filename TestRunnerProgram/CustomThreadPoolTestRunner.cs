@@ -1,5 +1,6 @@
 ﻿using CustomThreadPool;
 using Shared;
+using System.Collections;
 using System.Reflection;
 using TestFrameworkCore.Attributes;
 using TestFrameworkCore.Attributes.TestFrameworkCore.Attributes;
@@ -9,6 +10,8 @@ using TestFrameworkCore.Results;
 
 namespace TestRunnerProgram
 {
+    public delegate bool TestFilter(MethodInfo method);
+
     public class CustomThreadPoolTestRunner
     {
         private readonly List<TestResult> _results = [];
@@ -27,9 +30,13 @@ namespace TestRunnerProgram
 
         private readonly ILogger _logger;
 
+        public TestFilter? Filter { get; set; }
+
         public CustomThreadPoolTestRunner(ILogger logger)
         {
             _logger = logger;
+            _threadPool.Events.TaskStarted += () => _logger.Log("[EVENT] Task started");
+            _threadPool.Events.TaskCompleted += () => _logger.Log("[EVENT] Task completed");
         }
 
         public IEnumerable<TestResult> RunTestsInAssembly(string assemblyPath)
@@ -64,6 +71,7 @@ namespace TestRunnerProgram
             var testMethods = testClass.GetMethods()
                 .Where(m => m.GetCustomAttributes<TestMethodAttribute>().Any())
                 .Where(m => !m.GetCustomAttributes<SkipTestAttribute>().Any())
+                .Where(m => Filter == null || Filter(m))
                 .ToList();
 
             var testObject = Activator.CreateInstance(testClass);
@@ -89,17 +97,19 @@ namespace TestRunnerProgram
                 foreach (var method in testMethods)
                 {
                     var testCases = method.GetCustomAttributes<TestCaseAttribute>().ToList();
+                    var sourceCases = GetTestCasesFromSource(testObject, method).ToList();
 
-                    if (testCases.Count == 0)
+                    if (testCases.Count == 0 && sourceCases.Count == 0)
                     {
                         EnqueueTest(testClass, testObject, method, sharedContext, null, null);
                     }
                     else
                     {
                         foreach (var tc in testCases)
-                        {
                             EnqueueTest(testClass, testObject, method, sharedContext, tc.Parameters, tc.Name);
-                        }
+
+                        foreach (var sc in sourceCases)
+                            EnqueueTest(testClass, testObject, method, sharedContext, sc, null);
                     }
                 }
             }
@@ -186,7 +196,7 @@ namespace TestRunnerProgram
             {
                 if (!thread.Join(timeout.Value))
                 {
-                    try { thread.Interrupt(); } catch { }
+                    try { thread.Interrupt(); } catch (Exception ex) { Console.WriteLine(ex.Message); }
 
                     return new TestResult
                     {
@@ -257,6 +267,36 @@ namespace TestRunnerProgram
             }
 
             return testResult;
+        }
+
+        private static IEnumerable<object[]> GetTestCasesFromSource(object testObject, MethodInfo method)
+        {
+            var attr = method.GetCustomAttribute<TestCaseSourceAttribute>();
+            if (attr == null) yield break;
+
+            var sourceMember = testObject.GetType()
+                .GetMember(attr.SourceName, BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
+                .FirstOrDefault();
+
+            if (sourceMember == null)
+                throw new Exception($"TestCaseSource '{attr.SourceName}' not found");
+
+            object? result = sourceMember switch
+            {
+                MethodInfo mi => mi.Invoke(testObject, null),
+                PropertyInfo pi => pi.GetValue(testObject),
+                FieldInfo fi => fi.GetValue(testObject),
+                _ => null
+            };
+
+            if (result is not IEnumerable enumerable)
+                throw new Exception("TestCaseSource must return IEnumerable");
+
+            foreach (var item in enumerable)
+            {
+                if (item is object[] arr)
+                    yield return arr;
+            }
         }
 
         private void WaitForCompletion()

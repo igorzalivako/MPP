@@ -8,49 +8,20 @@ namespace ChessEngine.Tests
 {
     namespace ChessEngineTests
     {
-        [TestClass(Category = "BishopMoves")]
+        [TestClass]
         public class BishopMoveTests
         {
-            [TestMethod]
-            [TestCase((byte)35, 13, Name = "Center e4")]      // e4 - центр
-            [TestCase((byte)7, 7, Name = "Corner a1")]        // a1 - угол
-            [TestCase((byte)27, 13, Name = "Center e5")]      // e5 - центр
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
-            [TestCase((byte)34, 11, Name = "Edge c5")]        // c5 - край
+            public IEnumerable<object[]> DataForBishopTests()
+            {
+                yield return new object[] { (byte)35, 14 };
+                yield return new object[] { (byte)7, 7 };
+                yield return new object[] { (byte)27, 13 };
+                yield return new object[] { (byte)34, 11 };
+            }
 
+            [TestMethod]
+            [TestCategory(Name = "Bishop")]
+            [TestCaseSource(nameof(DataForBishopTests))]
             public async Task BishopMoves_FromDifferentSquares_ReturnsCorrectMoveCount(byte square, int expectedMoveCount)
             {
                 await Task.Delay(500);
@@ -63,14 +34,14 @@ namespace ChessEngine.Tests
                 int actualMoveCount = BitOperations.PopCount(moves);
 
                 // Assert
-                Assert.AreEqual(expectedMoveCount, actualMoveCount,
-                    $"Bishop from square {square} should have {expectedMoveCount} moves, but had {actualMoveCount}");
+                Assert.That(() => expectedMoveCount == actualMoveCount);
 
                 // Дополнительная проверка: слон не может ходить на клетку, на которой стоит
                 Assert.IsFalse((moves & (1UL << square)) != 0, "Bishop should not be able to move to its own square");
             }
 
             [TestMethod]
+            [TestCategory(Name = "Bishop")]
             public async Task BishopMoves_BlockedByOwnPiece_StopsBeforeBlock()
             {
                 await Task.Delay(500);
@@ -91,6 +62,7 @@ namespace ChessEngine.Tests
             }
 
             [TestMethod]
+            [TestCategory(Name = "Bishop")]
             public async Task BishopMoves_BlockedByEnemyPiece_IncludesEnemySquare()
             {
                 await Task.Delay(500);
@@ -108,6 +80,7 @@ namespace ChessEngine.Tests
             }
 
             [TestMethod]
+            [TestCategory(Name = "Bishop")]
             public async Task BishopMoves_OnlyCaptures_ReturnsOnlyEnemySquares()
             {
                 await Task.Delay(500);
@@ -129,10 +102,11 @@ namespace ChessEngine.Tests
             }
         }
 
-        [TestClass(Category = "RookMoves")]
+        [TestClass]
         public class RookMoveTests
         {
             [TestMethod]
+            [TestCategory(Name = "Rook")]
             [TestCase((byte)36, (byte)44, (byte)52, Name = "Rook blocked to the north")]
             [TestCase((byte)36, (byte)28, (byte)20, Name = "Rook blocked to the south")]
             [TestCase((byte)36, (byte)37, (byte)38, Name = "Rook blocked to the east")]
@@ -166,6 +140,7 @@ namespace ChessEngine.Tests
             }
 
             [TestMethod]
+            [TestCategory(Name = "Rook")]
             public async Task RookMoves_BlockedByPieces_StopsCorrectly()
             {
                 await Task.Delay(500);
@@ -192,7 +167,7 @@ namespace ChessEngine.Tests
             }
         }
 
-        [TestClass(Category = "QueenMoves")]
+        [TestClass]
         public class QueenMoveTests
         {
             [SkipTest]
@@ -216,11 +191,12 @@ namespace ChessEngine.Tests
             }
         }
 
-        [TestClass(Category = "AdvancedScenarios")]
+        [TestClass]
         public class AdvancedScenarioTests
         {
             [SkipTest]
             [TestMethod]
+            [TestCategory(Name = "Advanced")]
             public async Task Test_QueenMoves_WithMultipleBlockers_ComplexAssertions()
             {
                 await Task.Delay(500);
@@ -283,7 +259,7 @@ namespace ChessEngine.Tests
             }
         }
 
-        [TestClass(Category = "PawnMoves")]
+        [TestClass]
         public class PawnMoveTests
         {
             private Pieces? _testPosition;
@@ -305,6 +281,7 @@ namespace ChessEngine.Tests
             }
             [SkipTest]
             [TestMethod]
+            [TestCategory(Name = "Pawn")]
             public async Task PawnMoves_WhenBlocked_NoForwardMoves()
             {
                 _pawnSquare = 12; // e2
@@ -326,6 +303,7 @@ namespace ChessEngine.Tests
             }
             [SkipTest]
             [TestMethod]
+            [TestCategory(Name = "Pawn")]
             public async Task PawnCaptures_WhenEnemyPiecesExist_CanCapture()
             {
                 _pawnSquare = 12; // e2
@@ -352,6 +330,7 @@ namespace ChessEngine.Tests
             [SkipTest]
             [TestMethod]
             [Timeout(1000)]
+            [TestCategory(Name = "Pawn")]
             public async Task PawnMoves_FromNonStartingRank_NoLongMove()
             {
                 _pawnSquare = 12; // e2

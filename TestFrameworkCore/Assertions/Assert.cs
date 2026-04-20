@@ -1,4 +1,5 @@
-﻿using TestFrameworkCore.Exceptions;
+﻿using System.Linq.Expressions;
+using TestFrameworkCore.Exceptions;
 
 namespace TestFrameworkCore.Assertions
 {
@@ -94,6 +95,139 @@ namespace TestFrameworkCore.Assertions
         {
             if (!collection.Contains(item))
                 throw new AssertionFailedException($"Assert.Contains failed: Collection does not contain '{item}'. {message}");
+        }
+
+        public static void That(Expression<Func<bool>> expression)
+        {
+            if (expression == null)
+                throw new ArgumentNullException(nameof(expression));
+
+            bool result;
+            try
+            {
+                result = expression.Compile().Invoke();
+            }
+            catch (Exception ex)
+            {
+                throw new AssertionFailedException(
+                    $"Assert.That failed during evaluation: {ex.Message}");
+            }
+
+            if (result) return;
+
+            var analysis = Analyze(expression.Body);
+
+            var message =
+                $"Assert.That failed:\n" +
+                $"Expression: {expression.Body}\n" +
+                $"Details:\n{analysis}";
+
+            throw new AssertionFailedException(message);
+        }
+
+        private static string Analyze(Expression expr, int indent = 0)
+        {
+            string pad = new string(' ', indent * 2);
+
+            switch (expr)
+            {
+                case BinaryExpression bin:
+                    return AnalyzeBinary(bin, indent);
+
+                case MethodCallExpression call:
+                    return AnalyzeMethodCall(call, indent);
+
+                case MemberExpression member:
+                    return $"{pad}{expr} = {SafeEval(expr)}";
+
+                case ConstantExpression constant:
+                    return $"{pad}{constant.Value}";
+
+                case UnaryExpression unary:
+                    return AnalyzeUnary(unary, indent);
+
+                default:
+                    return $"{pad}{expr} = {SafeEval(expr)}";
+            }
+        }
+
+        private static string AnalyzeBinary(BinaryExpression bin, int indent)
+        {
+            string pad = new string(' ', indent * 2);
+
+            var leftVal = SafeEval(bin.Left);
+            var rightVal = SafeEval(bin.Right);
+            var result = SafeEval(bin);
+
+            var op = GetOperator(bin.NodeType);
+
+            return
+                $"{pad}{bin.NodeType} ({op}) => {result}\n" +
+                $"{pad}LEFT:\n{Analyze(bin.Left, indent + 1)}\n" +
+                $"{pad}RIGHT:\n{Analyze(bin.Right, indent + 1)}\n" +
+                $"{pad}VALUES: {leftVal} {op} {rightVal}";
+        }
+
+        private static string AnalyzeMethodCall(MethodCallExpression call, int indent)
+        {
+            string pad = new string(' ', indent * 2);
+
+            var args = call.Arguments
+                .Select(a => $"{a} = {SafeEval(a)}")
+                .ToArray();
+
+            var result = SafeEval(call);
+
+            return
+                $"{pad}CALL: {call.Method.Name} => {result}\n" +
+                $"{pad}ARGS:\n{string.Join("\n", args.Select(a => pad + "  " + a))}";
+        }
+
+        private static string AnalyzeUnary(UnaryExpression unary, int indent)
+        {
+            string pad = new string(' ', indent * 2);
+
+            var operandVal = SafeEval(unary.Operand);
+            var result = SafeEval(unary);
+
+            return
+                $"{pad}{unary.NodeType} => {result}\n" +
+                $"{pad}OPERAND:\n{Analyze(unary.Operand, indent + 1)}\n" +
+                $"{pad}VALUE: {operandVal}";
+        }
+
+        private static object? SafeEval(Expression expr)
+        {
+            try
+            {
+                var lambda = Expression.Lambda(expr);
+                var compiled = lambda.Compile();
+                return compiled.DynamicInvoke();
+            }
+            catch
+            {
+                return "<?>"; // если не удалось вычислить
+            }
+        }
+
+        private static string GetOperator(ExpressionType type)
+        {
+            return type switch
+            {
+                ExpressionType.Equal => "==",
+                ExpressionType.NotEqual => "!=",
+                ExpressionType.GreaterThan => ">",
+                ExpressionType.GreaterThanOrEqual => ">=",
+                ExpressionType.LessThan => "<",
+                ExpressionType.LessThanOrEqual => "<=",
+                ExpressionType.AndAlso => "&&",
+                ExpressionType.OrElse => "||",
+                ExpressionType.Add => "+",
+                ExpressionType.Subtract => "-",
+                ExpressionType.Multiply => "*",
+                ExpressionType.Divide => "/",
+                _ => type.ToString()
+            };
         }
     }
 }
